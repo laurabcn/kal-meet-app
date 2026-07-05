@@ -35,6 +35,8 @@ test: run-pest ## Run the Pest test suite
 
 run-pest: ## Run Pest
 	@$(DOCKER_COMPOSE) run --rm pest
+run-arch: ## Run only the architecture tests (tests/Arch)
+	@$(RUN) app vendor/bin/pest tests/Arch
 run-tests-filter: ## Run Pest filtered by name. Example: make run-tests-filter p='some test name'
 	@$(RUN) app vendor/bin/pest --filter "$(p)"
 run-tests-retry: ## Re-run only the tests that failed last time
