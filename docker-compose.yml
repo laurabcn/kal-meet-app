@@ -1,0 +1,43 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    command: ["php", "-S", "0.0.0.0:8000", "-t", "public", "public/index.php"]
+
+  pest:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/app
+    command: ["vendor/bin/pest"]
+
+  phpstan:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/app
+    command: ["vendor/bin/phpstan", "analyse"]
+
+  cs-fixer:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/app
+    command: ["vendor/bin/php-cs-fixer", "fix", "--dry-run", "--diff", "--allow-risky=yes"]
