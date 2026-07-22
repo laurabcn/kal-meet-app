@@ -4,6 +4,7 @@
 /var/
 .phpunit.result.cache
 .php-cs-fixer.cache
+/.env
 /.env.local
 /.env.*.local
 /config/reference.php
