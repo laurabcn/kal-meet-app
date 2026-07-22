@@ -1,0 +1,20 @@
+framework:
+    messenger:
+        default_bus: command.bus
+        buses:
+            command.bus:
+                middleware:
+                    - App\Shared\Infrastructure\Symfony\Middleware\MessageStoreMiddleware
+            query.bus: ~
+            # Events and external messages may legitimately have zero handlers
+            # (e.g. no subscriber wired up yet), unlike commands/queries.
+            event.bus:
+                default_middleware:
+                    allow_no_handlers: true
+                middleware:
+                    - App\Shared\Infrastructure\Symfony\Middleware\MessageStoreMiddleware
+            external_message.bus:
+                default_middleware:
+                    allow_no_handlers: true
+                middleware:
+                    - App\Shared\Infrastructure\Symfony\Middleware\MessageStoreMiddleware

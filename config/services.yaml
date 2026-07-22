@@ -1,0 +1,18 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        bind:
+            $commandBus: '@command.bus'
+            $queryBus: '@query.bus'
+            $eventBus: '@event.bus'
+            $externalMessageBus: '@external_message.bus'
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
