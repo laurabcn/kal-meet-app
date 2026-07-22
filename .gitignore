@@ -1,6 +1,7 @@
 /vendor/
 /.idea/
 /.vscode/
+/.claude/
 /var/
 .phpunit.result.cache
 .php-cs-fixer.cache
