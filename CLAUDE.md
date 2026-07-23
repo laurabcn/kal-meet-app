@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 The backend of **KAL App**: a web tool for KAL (knit-along) organizers, replacing the current
-patchwork of Instagram + Google Forms + Telegram/Discord + spreadsheets with a single app. PHP 8.3,
-Symfony 7, Doctrine DBAL (SQL directe, sense ORM), Pest, PHPStan i PHP CS Fixer. Tot corre a Docker —
+patchwork of Instagram + Google Forms + Telegram/Discord + spreadsheets with a single app. PHP 8.5,
+Symfony 8, Doctrine DBAL (SQL directe, sense ORM), Pest, PHPStan i PHP CS Fixer. Tot corre a Docker —
 no hi ha instal·lació local de PHP, així que totes les comandes van via `make` / `docker compose run`.
 
 This repo started life as a reusable take-home-challenge boilerplate; that framing is now retired —

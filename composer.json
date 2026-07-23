@@ -17,7 +17,7 @@
         "symfony/yaml": "^8.0"
     },
     "require-dev": {
-        "pestphp/pest": "^3.5",
+        "pestphp/pest": "^4.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "phpstan/phpstan": "^2.1"
     },
