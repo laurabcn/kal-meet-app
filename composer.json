@@ -1,6 +1,6 @@
 {
-    "name": "you/php-challenge",
-    "description": "PHP technical challenge",
+    "name": "laurabcn/kal-meet-app",
+    "description": "KAL App backend — web tool for knit-along organizers",
     "type": "project",
     "license": "proprietary",
     "require": {
