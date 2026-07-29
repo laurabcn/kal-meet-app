@@ -1,0 +1,16 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # El root PSR-4 `Tests\` viu a autoload-dev, fora del glob `App\` de
+    # services.yaml: el doble s'ha de registrar a mà.
+    Tests\Kal\Infrastructure\Persistence\InMemoryKalRepository:
+        public: true
+
+    # Als tests el port apunta al doble, mai al DbalKalRepository: cap test toca
+    # Postgres. Public perquè el test pugui treure'l del container i comprovar
+    # què s'hi ha persistit.
+    App\Kal\Domain\KalRepositoryInterface:
+        alias: Tests\Kal\Infrastructure\Persistence\InMemoryKalRepository
+        public: true
