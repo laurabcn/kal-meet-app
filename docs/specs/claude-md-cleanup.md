@@ -1,5 +1,19 @@
 # CLAUDE.md cleanup
 
+> Status: **COMPLETAT** (verificat el 2026-07-29). Els nou criteris d'acceptació
+> es compleixen contra el `CLAUDE.md` actual: introducció única com a backend de
+> KAL App, secció "Adapting this boilerplate" eliminada, cap secció duplicada,
+> PHPStan `level: max` (actual) vs `level: 9` (objectiu, no aplicat) diferenciats,
+> CS Fixer com a `@PER-CS` + `@Symfony`, i "Agent Harness" marcat com a pla
+> pendent. El contingut de negoci i domini es manté intacte.
+>
+> Matís sobre l'últim criteri ("cap altre fitxer del repo es modifica"):
+> `composer.json` ja no es diu `you/php-challenge` sinó `laurabcn/kal-meet-app`,
+> però va ser el commit `d7a57c3`, feina a part, no un efecte d'aquesta neteja.
+>
+> Aquest document queda com a **registre del que es va fer**, no com a encàrrec
+> obert. La descripció del problema de sota descriu l'estat *anterior*.
+
 ## Problema
 
 `CLAUDE.md` conté avui dos blocs superposats sense reconciliar:
