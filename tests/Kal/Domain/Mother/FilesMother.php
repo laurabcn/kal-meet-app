@@ -12,16 +12,16 @@ final class FilesMother
 {
     public static function empty(): Files
     {
-        return Files::create();
+        return Files::create([]);
     }
 
     public static function of(File ...$files): Files
     {
-        return Files::create(...$files);
+        return Files::create($files);
     }
 
     public static function withLocale(Locale $locale): Files
     {
-        return Files::create(FileMother::withLocale($locale));
+        return Files::create([FileMother::withLocale($locale)]);
     }
 }

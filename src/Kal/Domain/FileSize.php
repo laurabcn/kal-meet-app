@@ -10,17 +10,14 @@ final readonly class FileSize
 {
     private const int SIZE_MAX = 5 * 1024 * 1024; // 5MB
 
-    /**
-     * @throws InvalidArgumentException
-     */
+    /** @throws InvalidArgumentException */
     private function __construct(public int $value)
     {
+        $this->guardPositive($value);
         $this->guardNotExceed($value);
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
+    /** @throws InvalidArgumentException */
     public static function create(int $value): self
     {
         return new self($value);
@@ -36,9 +33,15 @@ final readonly class FileSize
         return $this->value === $other->value;
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
+    /** @throws InvalidArgumentException */
+    private function guardPositive(int $value): void
+    {
+        if ($value <= 0) {
+            throw InvalidArgumentException::fileSizeNotPositive();
+        }
+    }
+
+    /** @throws InvalidArgumentException */
     private function guardNotExceed(int $value): void
     {
         if ($value > self::SIZE_MAX) {

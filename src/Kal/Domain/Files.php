@@ -6,22 +6,18 @@ namespace App\Kal\Domain;
 
 final readonly class Files
 {
-    /** @var File[] */
-    private array $files;
-
-    private function __construct(File ...$files)
+    /** @param  File[] $files*/
+    private function __construct(private array $files)
     {
-        $this->files = $files;
     }
 
-    public static function create(File ...$files): self
+    /** @param  File[] $files*/
+    public static function create(array $files): self
     {
-        return new self(...$files);
+        return new self($files);
     }
 
-    /**
-     * @return File[]
-     */
+    /** @return File[] */
     public function all(): array
     {
         return $this->files;

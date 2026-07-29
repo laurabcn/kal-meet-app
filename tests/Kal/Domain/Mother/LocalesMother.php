@@ -12,16 +12,16 @@ final class LocalesMother
 {
     public static function catalanAndSpanish(): Locales
     {
-        return Locales::create(LocaleMother::catalan(), LocaleMother::spanish());
+        return Locales::create([LocaleMother::catalan(), LocaleMother::spanish()]);
     }
 
     public static function catalanOnly(): Locales
     {
-        return Locales::create(LocaleMother::catalan());
+        return Locales::create([LocaleMother::catalan()]);
     }
 
     public static function of(Locale ...$locales): Locales
     {
-        return Locales::create(...$locales);
+        return Locales::create($locales);
     }
 }

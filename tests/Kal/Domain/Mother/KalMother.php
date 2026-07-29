@@ -8,6 +8,7 @@ use App\Kal\Domain\Clues;
 use App\Kal\Domain\Files;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Locales;
+use App\Kal\Domain\Meetings;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -24,6 +25,7 @@ final class KalMother
         ?string $coverPath = null,
         ?UlidValue $organizerId = null,
         ?NonEmptyStringValue $name = null,
+        ?Meetings $meetings = null,
     ): Kal {
         return Kal::create(
             $organizerId ?? UlidValue::generate(),
@@ -35,6 +37,7 @@ final class KalMother
             $description,
             $endsOn,
             $coverPath,
+            $meetings,
         );
     }
 }

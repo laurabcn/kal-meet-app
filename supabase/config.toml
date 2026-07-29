@@ -1,0 +1,18 @@
+# Supabase local development configuration
+# See: https://supabase.com/docs/guides/cli/config
+
+[project]
+id = "kal-app"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323

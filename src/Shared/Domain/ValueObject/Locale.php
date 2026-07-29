@@ -12,8 +12,6 @@ final readonly class Locale
      * ISO 639-1 alpha-2 language codes. Not a business whitelist: it is the
      * full ISO standard, so an organizer can run a KAL in any real language
      * while codes that don't exist (e.g. "xyz") are still rejected.
-     *
-     * @var list<string>
      */
     private const array ISO_639_1 = [
         'aa', 'ab', 'ae', 'af', 'ak', 'am', 'an', 'ar', 'as', 'av', 'ay', 'az',
@@ -44,26 +42,18 @@ final readonly class Locale
         'za', 'zh', 'zu',
     ];
 
-    private string $value;
+    private function __construct(private string $value)
+    {
+    }
 
-    /**
-     * @throws InvalidArgumentException
-     */
-    private function __construct(string $value)
+    /** @throws InvalidArgumentException */
+    public static function fromString(string $value): self
     {
         $normalized = strtolower(trim($value));
 
-        $this->guardIsKnownLanguage($normalized);
+        self::guardIsKnownLanguage($normalized);
 
-        $this->value = $normalized;
-    }
-
-    /**
-     * @throws InvalidArgumentException
-     */
-    public static function fromString(string $value): self
-    {
-        return new self($value);
+        return new self($normalized);
     }
 
     public function value(): string
@@ -79,7 +69,7 @@ final readonly class Locale
     /**
      * @throws InvalidArgumentException
      */
-    private function guardIsKnownLanguage(string $value): void
+    private static function guardIsKnownLanguage(string $value): void
     {
         if (!in_array($value, self::ISO_639_1, true)) {
             throw InvalidArgumentException::invalidLocale($value);

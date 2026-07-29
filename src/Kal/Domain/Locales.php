@@ -9,41 +9,35 @@ use App\Shared\Domain\ValueObject\Locale;
 
 final readonly class Locales
 {
-    /** @var Locale[] */
-    private array $locales;
-
-    /**
-     * @throws KalException
-     */
-    private function __construct(Locale ...$locales)
-    {
-        $this->guardNotEmpty($locales);
-
-        $this->locales = $locales;
+    /** @param Locale[] $locales */
+    public function __construct(
+        private array $locales,
+    ) {
     }
 
     /**
+     * @param Locale[] $locales
+     *
      * @throws KalException
      */
-    public static function create(Locale ...$locales): self
+    public static function create(array $locales): self
     {
-        return new self(...$locales);
+        self::guardNotEmpty($locales);
+
+        $unique = [];
+        foreach ($locales as $locale) {
+            $unique[$locale->value()] ??= $locale;
+        }
+
+        return new self(array_values($unique));
     }
 
     public function contains(Locale $locale): bool
     {
-        foreach ($this->locales as $enabled) {
-            if ($enabled->equals($locale)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($this->locales, fn ($enabled) => $enabled->equals($locale));
     }
 
-    /**
-     * @return Locale[]
-     */
+    /** @return Locale[] */
     public function all(): array
     {
         return $this->locales;
@@ -54,7 +48,7 @@ final readonly class Locales
      *
      * @throws KalException
      */
-    private function guardNotEmpty(array $locales): void
+    private static function guardNotEmpty(array $locales): void
     {
         if ([] === $locales) {
             throw KalException::noLocalesEnabled();

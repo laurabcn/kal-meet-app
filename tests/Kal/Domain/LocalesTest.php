@@ -32,6 +32,26 @@ it('reports that it does not contain a locale that was not enabled', function ()
     expect($locales->contains(LocaleMother::english()))->toBeFalse();
 });
 
+it('deduplicates exact-match locales', function (): void {
+    $locales = Locales::create([
+        LocaleMother::catalan(),
+        LocaleMother::catalan(),
+        LocaleMother::spanish(),
+    ]);
+
+    expect($locales->all())->toHaveCount(2);
+});
+
+it('deduplicates case-variant locales', function (): void {
+    $locales = Locales::create([
+        LocaleMother::fromString('ca'),
+        LocaleMother::fromString('CA'),
+    ]);
+
+    expect($locales->all())->toHaveCount(1)
+        ->and($locales->all()[0]->value())->toBe('ca');
+});
+
 it('throws when created with no locales at all', function (): void {
-    Locales::create();
+    Locales::create([]);
 })->throws(KalException::class, 'kal_no_locales_enabled');

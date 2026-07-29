@@ -16,6 +16,10 @@ readonly class UlidValue
     /** @throws InvalidArgumentException */
     public static function create(string $value): static
     {
+        if (!SymfonyUlid::isValid($value)) {
+            throw InvalidArgumentException::invalidUlid();
+        }
+
         try {
             return new static(SymfonyUlid::fromString($value));
         } catch (\InvalidArgumentException) {

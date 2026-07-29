@@ -6,17 +6,15 @@ namespace App\Kal\Domain;
 
 final class Clues
 {
-    /** @var Clue[] */
-    private array $clues;
-
-    private function __construct(Clue ...$clues)
+    /** @param Clue[] $clues */
+    private function __construct(private array $clues)
     {
-        $this->clues = $clues;
     }
 
-    public static function create(Clue ...$clues): self
+    /** @param Clue[] $clues */
+    public static function create(array $clues): self
     {
-        return new self(...$clues);
+        return new self($clues);
     }
 
     /**
