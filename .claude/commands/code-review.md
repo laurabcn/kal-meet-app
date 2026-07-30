@@ -28,7 +28,7 @@ If `$1` is ambiguous, ask which form with `AskUserQuestion` (or infer: all-digit
    - Form 1: `git diff HEAD --stat` + `git diff HEAD`.
    - Form 2: detect base (`git merge-base`), `git diff <base>...HEAD --stat` + the diff.
    - Form 3: `gh pr view <n> --json title,body,headRefName` for context + `gh pr diff <n>`.
-3. **Delegate to the subagent.** This environment doesn't register `.claude/agents/*.md` as its own `subagent_type` — call the `Agent` tool with `subagent_type: "general-purpose"` instead, and make the first instruction "Read `.claude/agents/code-reviewer.md` in this repo and follow that role definition exactly for the rest of this task." Then pass: the form/scope, the changed-file list, and the diff (or, for a local form, the base ref so it can read freely). Let the agent read the surrounding code itself — don't pre-summarise findings.
+3. **Delegate to the subagent.** Call the `Agent` tool with `subagent_type: "code-reviewer"` — the harness registers `.claude/agents/*.md` as its own type, so the role loads on spawn and the prompt carries only the task. Pass: the form/scope, the changed-file list, and the diff (or, for a local form, the base ref so it can read freely). Let the agent read the surrounding code itself — don't pre-summarise findings.
 4. **Relay the report.** Present the agent's structured report (Verdict / 🔴 Blocking / 🟡 Non-blocking / 🧪 Tests / 📐 Conventions / ➕ Out of scope) in the user's language. Add nothing of your own except, if the verdict is "Ready", a one-line reminder that the real gates are still `make run-phpstan` + `make run-cs-fixer` + `make test` (i.e. `make qa`).
 
 ## Notes

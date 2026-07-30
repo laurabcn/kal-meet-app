@@ -28,17 +28,14 @@ Findings live on disk. You pass paths. You do not paste content and you do not o
 </rules>
 
 <available_agents>
-This environment does not register `.claude/agents/*.md` files as their own
-`subagent_type` — only built-in types are available. Use the Agent tool with
-`subagent_type: "general-purpose"` and `isolation: "worktree"` so each
-reviewer works on its own disposable copy of the repo. Make the **first
-instruction** in each dispatch prompt "Read `.claude/agents/<file>.md` in this
-repo and follow that role definition exactly for the rest of this task" —
-the agent has `Read` access and loads its own persona.
+The harness registers `.claude/agents/*.md` files as their own `subagent_type`,
+so spawn each reviewer by name and its role loads automatically — the dispatch
+prompt carries only the task. Pass `isolation: "worktree"` so each reviewer
+works on its own disposable copy of the repo.
 
-- **bug-reviewer** (`.claude/agents/bug-reviewer.md`): correctness under honest inputs and expected load.
-- **security-reviewer** (`.claude/agents/security-reviewer.md`): vulnerabilities that require an adversary.
-- **conventions-reviewer** (`.claude/agents/conventions-reviewer.md`): violations of documented skill rules.
+- **bug-reviewer**: correctness under honest inputs and expected load.
+- **security-reviewer**: vulnerabilities that require an adversary.
+- **conventions-reviewer**: violations of documented skill rules.
 </available_agents>
 
 <workflow>
@@ -70,8 +67,7 @@ The sub-reviewers will create parent directories as needed.
 </step-3-assign-paths>
 
 <step-4-launch-sub-reviewers>
-Launch ALL 3 sub-reviewers in a single message with 3 parallel Agent tool calls (`subagent_type: "general-purpose"`, `isolation: "worktree"`). Each dispatch includes:
-- First instruction: "Read `.claude/agents/<bug-reviewer|security-reviewer|conventions-reviewer>.md` in this repo and follow that role definition exactly for the rest of this task."
+Launch ALL 3 sub-reviewers in a single message with 3 parallel Agent tool calls (`subagent_type: "bug-reviewer"` / `"security-reviewer"` / `"conventions-reviewer"`, each with `isolation: "worktree"`). Each dispatch includes:
 - The PR diff (full)
 - The list of changed files
 - The PR description and commit messages
