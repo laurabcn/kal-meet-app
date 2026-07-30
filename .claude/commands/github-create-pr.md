@@ -66,7 +66,7 @@ Present the generated PR body to the user.
 </step-5-generate-pr-body>
 
 <step-6-create-draft-pr>
-After confirmation, use the **github-creating-pull-requests** skill to create the draft PR against `laurabcn/kal-app-backend`.
+After confirmation, use the **github-creating-pull-requests** skill to create the draft PR against `laurabcn/kal-meet-app`.
 </step-6-create-draft-pr>
 
 <output>
