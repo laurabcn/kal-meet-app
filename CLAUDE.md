@@ -269,7 +269,22 @@ IA (Fase IA), recomanador.
   d'arquitectura equivalent) ha de fer complir que `Domain/` no depèn de
   Symfony/DBAL ni de `Infrastructure/`/`UI/` del seu context — encara no
   configurat (veure "Agent Harness" més avall)
-- **Tests:** PHPUnit; els d'integració contra Supabase **local** (mai producció)
+- **Tests:** Pest (sobre PHPUnit); els d'integració contra Supabase **local** (mai
+  producció). Al backend hi viuen els unitaris de domini, els d'integració dels
+  repositoris DBAL i els funcionals HTTP (`symfony/browser-kit`) — **cap test de
+  navegador**
+- **E2E: Playwright natiu al repo del frontend, no al backend** (decidit
+  2026-07-30). Pest 4 pot fer browser testing amb `pest-plugin-browser` (que per
+  sota TAMBÉ és Playwright), però es va descartar: (a) la superfície E2E real és
+  gairebé tota frontend — magic links, pujada de fotos i compressió al client van
+  directes a Supabase i no passen per Symfony; (b) obligaria a posar Node i els
+  binaris de navegador (~1 GB) a la imatge PHP-FPM; (c) l'ergonomia del plugin és
+  Laravel-first (l'app arrenca sola, helpers d'auth/DB) i amb Symfony et quedes
+  apuntant a una URL absoluta, perdent trace viewer/codegen/UI mode i els tipus
+  d'openapi-typescript que el frontend ja té. Abast a l'MVP: 2-3 journeys
+  (inscripció des del mòbil via enllaç d'invitació, pujar foto a una pista, crear
+  KAL); els magic links es llegeixen del servidor de correu que ja aixeca
+  `supabase start`
 - **Principi d'API multi-client:** el backend exposa contractes per context
   (OpenAPI) pensats perquè hi hagi múltiples clients — avui el frontend Vue
   (lectura+escriptura, JWT d'usuària) i demà el MCP de llanes/patrons (només
