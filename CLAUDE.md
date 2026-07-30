@@ -9,10 +9,8 @@ patchwork of Instagram + Google Forms + Telegram/Discord + spreadsheets with a s
 Symfony 8, Doctrine DBAL (SQL directe, sense ORM), Pest, PHPStan i PHP CS Fixer. Tot corre a Docker —
 no hi ha instal·lació local de PHP, així que totes les comandes van via `make` / `docker compose run`.
 
-This repo started life as a reusable take-home-challenge boilerplate; that framing is now retired —
-this is the real product, not a template. `src/Shared` is still the domain-agnostic CQRS/messaging
-kernel described below, but everything else under `src/` is KAL App domain code, not
-challenge-of-the-day scaffolding.
+The `src/Shared` directory follows a hexagonal architecture and Domain-Driven Design with the CQRS pattern. 
+We strive to adhere to SOLID principles.
 
 **Usuàries:** organitzadores/dissenyadores de patrons i participants. Ús mixt: desktop/tauleta per
 seguir el KAL i les trobades (estones llargues), mòbil per pujar fotos i apuntar-se (moment estrella,
@@ -23,8 +21,7 @@ participants gratis; pot evolucionar a mesura que es defineixi el producte i arr
 El que NO canvia: el client és l'organitzadora — qui pren la decisió d'usar l'eina i sent el dolor que
 resolem. A qui servim primer, encara que algun dia les participants paguin per alguna cosa.
 
-**Estat:** MVP en construcció per una sola desenvolupadora sènior de PHP (10+ anys: Symfony, DDD,
-hexagonal, CQRS, Event Sourcing; frontend menys). Projecte paral·lel a mitja jornada — prioritzar la
+**Estat:** MVP en construcció. Projecte paral·lel a mitja jornada — prioritzar la
 solució simple sobre l'elegant. La desenvolupadora és l'arquitecta: els agents proposen, ella decideix.
 Davant d'un dubte de disseny, preguntar-li, no assumir.
 
