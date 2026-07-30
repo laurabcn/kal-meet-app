@@ -10,3 +10,11 @@
 /.env.*.local
 /config/reference.php
 /docs
+/tmp
+/supabase
+/docker
+/config
+docker-compose.yml
+/Controller/*
+Kernel.php
+.phpunit.cache
