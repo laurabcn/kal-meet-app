@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+>
+    <php>
+        <ini name="display_errors" value="1"/>
+        <ini name="error_reporting" value="-1"/>
+        <server name="APP_ENV" value="test" force="true"/>
+        <server name="KERNEL_CLASS" value="App\Kernel"/>
+    </php>
+
+    <testsuites>
+        <testsuite name="arch">
+            <directory>tests/Arch</directory>
+        </testsuite>
+        <testsuite name="domain">
+            <directory>tests/Kal/Domain</directory>
+            <directory>tests/Shared</directory>
+        </testsuite>
+        <testsuite name="functional">
+            <directory>tests/Kal/Application</directory>
+        </testsuite>
+        <testsuite name="e2e">
+            <directory>tests/Kal/Ui</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>

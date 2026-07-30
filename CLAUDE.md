@@ -9,10 +9,8 @@ patchwork of Instagram + Google Forms + Telegram/Discord + spreadsheets with a s
 Symfony 8, Doctrine DBAL (SQL directe, sense ORM), Pest, PHPStan i PHP CS Fixer. Tot corre a Docker —
 no hi ha instal·lació local de PHP, així que totes les comandes van via `make` / `docker compose run`.
 
-This repo started life as a reusable take-home-challenge boilerplate; that framing is now retired —
-this is the real product, not a template. `src/Shared` is still the domain-agnostic CQRS/messaging
-kernel described below, but everything else under `src/` is KAL App domain code, not
-challenge-of-the-day scaffolding.
+The `src/Shared` directory follows a hexagonal architecture and Domain-Driven Design with the CQRS pattern. 
+We strive to adhere to SOLID principles.
 
 **Usuàries:** organitzadores/dissenyadores de patrons i participants. Ús mixt: desktop/tauleta per
 seguir el KAL i les trobades (estones llargues), mòbil per pujar fotos i apuntar-se (moment estrella,
@@ -23,8 +21,7 @@ participants gratis; pot evolucionar a mesura que es defineixi el producte i arr
 El que NO canvia: el client és l'organitzadora — qui pren la decisió d'usar l'eina i sent el dolor que
 resolem. A qui servim primer, encara que algun dia les participants paguin per alguna cosa.
 
-**Estat:** MVP en construcció per una sola desenvolupadora sènior de PHP (10+ anys: Symfony, DDD,
-hexagonal, CQRS, Event Sourcing; frontend menys). Projecte paral·lel a mitja jornada — prioritzar la
+**Estat:** MVP en construcció. Projecte paral·lel a mitja jornada — prioritzar la
 solució simple sobre l'elegant. La desenvolupadora és l'arquitecta: els agents proposen, ella decideix.
 Davant d'un dubte de disseny, preguntar-li, no assumir.
 
@@ -36,51 +33,25 @@ deixar-hi el terreny preparat.
 
 ## Commands
 
-```bash
-make setup              # build the image, install Composer dependencies
-make build               # (re)build the app image only
-make bash                 # interactive shell in the app container
-make serve                # serve the HTTP skeleton at http://localhost:8000
+Totes les comandes van via `make` (tot corre a Docker) — `make help` per a la llista
+completa i agrupada. El gate abans de donar feina per acabada: **`make qa`** (PHPStan +
+CS Fixer dry-run + Pest).
 
-make test                 # run the full Pest suite
-make run-arch             # run only the architecture tests (tests/Arch)
-make run-tests-filter p='name'   # run Pest filtered by test name
-make run-tests-retry      # re-run only tests that failed last time
-
-make qa                   # PHPStan + CS Fixer (dry-run) + Pest — run this before considering work done
-make run-phpstan          # PHPStan only
-make run-cs-fixer         # CS Fixer, dry-run/diff only (does not modify files)
-make run-cs-fixer-fix     # auto-fix code style violations
-
-make composer-require p=vendor/package       # require a runtime package
-make composer-require-dev p=vendor/package   # require a dev package
-```
-
-Run `make help` for the full, grouped list. There is no `bin/console`; this project only pulls in `symfony/console` + `symfony/dependency-injection` (plus the optional HTTP skeleton), not a CLI application skeleton — add one if needed.
+There is no `bin/console`; this project only pulls in `symfony/console` + `symfony/dependency-injection` (plus the optional HTTP skeleton), not a CLI application skeleton — add one if needed.
 
 ## Architecture
 
 ### Composition root
 
-`src/Kernel.php` uses `MicroKernelTrait` with no overrides — all wiring is convention-based config in `config/`:
-- `config/bundles.php` — registered bundles (`FrameworkBundle`, `DoctrineBundle`).
-- `config/services.yaml` — `App\` is autowired/autoconfigured by default. The four message buses (see below) are bound to constructor parameters by **name** (`$commandBus`, `$queryBus`, `$eventBus`, `$externalMessageBus`), not by type — a class that wants a specific bus must name its constructor parameter accordingly.
-- `config/packages/messenger.yaml` — declares the four named buses and attaches `MessageStoreMiddleware` to `command.bus`, `event.bus` and `external_message.bus` (not `query.bus`, since queries are never `Storable`).
-- `config/packages/doctrine.yaml` — DBAL connection only.
+`src/Kernel.php` uses `MicroKernelTrait` with no overrides — all wiring is convention-based config in `config/`.
 
 ### `src/Shared` — the CQRS/messaging kernel
 
-This is the one substantial piece of domain-agnostic infrastructure the codebase ships with; everything else under `src/` is KAL App domain-specific. It follows DDD/hexagonal layering (`Domain` → `Application` → `Infrastructure`) and is organized around **four independent Symfony Messenger buses**, each with its own adapter in `Shared/Infrastructure/Symfony/Bus/`:
-
-| Bus | Interface | Adapter | Purpose |
-|---|---|---|---|
-| `command.bus` | `CommandBusInterface` | `SymfonyCommandBus` | in-process writes, exactly one handler |
-| `query.bus` | `QueryBusInterface` | `SymfonyQueryBus` | in-process reads, exactly one handler, returns a `ResponseInterface` |
-| `event.bus` | `DomainEventBusInterface` | `SymfonyDomainEventBus` | in-process domain events, zero-or-more handlers |
-| `external_message.bus` | `ExternalMessageBusInterface` | `SymfonyExternalMessageBus` | cross-bounded-context messages, produced and consumed over a transport |
+This is the one substantial piece of domain-agnostic infrastructure the codebase ships with; everything else under `src/` is KAL App domain-specific. It follows DDD/hexagonal layering (`Domain` → `Application` → `Infrastructure`) and is organized around **four independent Symfony Messenger buses**, each with its own adapter in `Shared/Infrastructure/Symfony/Bus/`.
 
 Key conventions to know before touching this code:
 
+- **Els busos de Messenger es lliguen per TIPUS + NOM**: a `config/services.yaml` els quatre transports estan lligats a `Symfony\Component\Messenger\MessageBusInterface $commandBus` (i `$queryBus`, `$eventBus`, `$externalMessageBus`). Un `bind` només per nom capturava *qualsevol* paràmetre amb aquest nom, també els tipats amb els ports de `Shared/Application` — un controller amb `CommandBusInterface $commandBus` rebia el `MessageBus` cru de Messenger i petava amb `TypeError` en construir-se. Conseqüència pràctica: **qui vulgui el bus cru de Messenger ha de tipar `MessageBusInterface` i anomenar el paràmetre exactament així** (és el cas dels adaptadors de `Shared/Infrastructure/Symfony/Bus/`); **qui vulgui el port** (`CommandBusInterface`, `QueryBusInterface`…) el tipa i prou, i l'autowiring per tipus el resol — el nom del paràmetre és lliure. `MessageStoreMiddleware` no s'aplica a `query.bus` (les queries mai són `Storable`).
 - **Storable vs plain messages**: `StorableCommandInterface`/`StorableEventInterface` (both extend `StorableMessageInterface` → `ExternalMessageInterface`) mark messages that `MessageStoreMiddleware` should persist via `MessageStoreRepositoryInterface`. A command/event only needs to implement one of these if it must be recorded in the message store; plain `CommandInterface`/`DomainEventInterface` implementations pass through untouched.
 - **Producing vs consuming**: `MessageStoreMiddleware` tells the two apart by the presence of a `ReceivedStamp` (present when the message came off a transport). On the consuming side the store lookup key is the transport name; on the producing side it's `$message::boundedContext()`. `MessageStoreRepositoryMapper::find()` matches a transport name back to a bounded context by the `{bc-kebab-case}-{suffix}` naming convention.
 - **`AggregateRoot`** (`Shared/Domain/Model`) accumulates domain events via `recordEvent()`/`pullDomainEvents()` — the standard base for any aggregate that needs to publish events after a write.
@@ -88,18 +59,18 @@ Key conventions to know before touching this code:
 
 ### Architecture tests (`tests/Arch`)
 
-Pest arch tests are the enforcement mechanism for the layering rules above, and are templates meant to be extended per bounded context (not just left as-is):
-- `LayerBoundariesTest.php` — `Domain` must not depend on `Application`, `Infrastructure`, Symfony or Doctrine; `Application` must not depend on `Infrastructure`; nothing outside `Infrastructure` (except the `Kernel`) may depend on it.
-- `ConventionsTest.php` — strict types in `Domain`/`Application`, `Domain` classes final, controllers final + single-action invokable, no debugging leftovers (`dd`, `dump`, `var_dump`, `print_r`) anywhere.
+Pest arch tests are the enforcement mechanism for the layering rules above, and are templates meant to be extended per bounded context (not just left as-is).
 
 Both files currently check against the bare `App\Domain`/`App\Application`/`App\Infrastructure` namespaces and pass vacuously until real domain code exists — when adding a bounded context (e.g. `App\<Context>\Domain`), extend these checks rather than assuming they already cover it.
 
 ### Static analysis and style — estat actual
 
-- PHPStan runs at `level: max` with `missingCheckedExceptionInThrows` enabled (`phpstan.dist.neon`) — any method throwing a custom exception must document it with `@throws`, checked recursively through call chains.
-- CS Fixer applies `@PER-CS` + `@Symfony` plus `declare_strict_types`, snake_case PHPUnit/Pest method names, and keeps `throw` as its own statement (`single_line_throw: false`) (`.php-cs-fixer.dist.php`). It scans `config/`, `public/`, `src/`, `tests/`, excluding `reference.php`.
+`phpstan.dist.neon` i `.php-cs-fixer.dist.php` són la font de veritat de la configuració
+real; llegeix-los abans d'assumir res. Conseqüència no òbvia: amb
+`missingCheckedExceptionInThrows` actiu, **qualsevol mètode que llenci una excepció pròpia
+l'ha de documentar amb `@throws`**, comprovat recursivament per tota la cadena de crides.
 
-This is the single source of truth for the *current* PHPStan/CS Fixer configuration. See
+See
 "Convencions" below for the target/plan, which differs from this current state on purpose (not yet
 applied).
 
@@ -167,26 +138,30 @@ applied).
   `starts_on` (alliberament programat)
 - Abans de `starts_on`, el **contingut de la pista** (PDF, vídeos gravats i
   reunions visuals lligades a la pista) NO és visible per a participants —
-  reforçat a RLS (helper `is_clue_released`) i a les URLs signades de Storage,
-  no només a la UI. NO afecta el xat: el xat és d'aula (nivell KAL), no de pista
+  reforçat a RLS (helper `is_clue_released`, aplicat tant a `clues_select_member`
+  com a `meetings_select_member`) i a les URLs signades de Storage, no només a la
+  UI. NO afecta el xat: el xat és d'aula (nivell KAL), no de pista
 - **No existeix el "debat per pista".** El xat escrit és sempre d'aula a nivell
   de KAL (veure Reunions i aules més avall)
 
 ## Model de domini (DDD — decidit, veure supabase/migrations/)
-**Context `src/Users/` — identitat:** perfil neutre (id intern ULID, external_id
+**Context `src/User/` — identitat:** perfil neutre (id intern ULID, external_id
 d'auth Supabase, display_name, avatar, locale). SENSE rol: una persona no "és"
 organitzadora o participant. El rol és **contextual per KAL** i es deriva de les
 relacions (`kals.organizer_id`, `participations`) — mai una columna `role`. La
 mateixa persona pot ser organitzadora d'un KAL i participant d'un altre. "El
 client és l'organitzadora" = la persona quan actua com a organitzadora.
 
-**Agregat Kal (arrel, `src/Kals/`):** id ULID · organizerId · name/description ·
+**Agregat Kal (arrel, `src/Kal/`):** id ULID · organizerId · name/description ·
 createdAt, updatedAt, startsOn, endsOn?, deletedAt (soft delete) · coverPath? ·
 pinnedMessage · inviteToken
 - **Clue (pista)** — ENTITAT dins l'agregat: id ULID, name, description,
   patternPath? (PDF propi de la pista), startsOn (alliberament), endsOn,
-  updatedAt. Invariant a l'arrel: les dates de cada clue cauen dins del rang
-  del Kal. Un Kal es pot crear buit
+  updatedAt, **locale** (idioma en què s'entrega la pista) i **una `Meeting`
+  obligatòria**. Invariant a l'arrel: les dates de cada clue cauen dins del rang
+  del Kal. Un Kal es pot crear buit. El `locale` ha de ser un dels habilitats al
+  KAL: ho fa complir el domini, no la BD (`clues_locale_iso` només valida el
+  format ISO de dues lletres)
 - **PatternInfo (fitxa tècnica)** — dins l'agregat Kal durant l'MVP (NO context
   propi encara). Camps a taula filla + jsonb: craft ('knitting'/'crochet', per
   defecte 'knitting'), garmentType?, yarnWeight?, difficulty?, patternInfo jsonb
@@ -201,8 +176,11 @@ pinnedMessage · inviteToken
   timezone, clueId?}: trobades en directe (Zoom/Meet, enllaç extern). `clueId`
   null = reunió del KAL; informat = reunió d'una pista concreta. Poden ser
   vàries (típicament per idioma). `timezone` (per defecte 'Europe/Madrid')
-  perquè scheduledAt és hora local de l'organitzadora. MVP: només a nivell de
-  KAL. Fase 2: reunions lligades a pista + múltiples per idioma
+  perquè scheduledAt és hora local de l'organitzadora. **MVP: tots dos nivells**
+  — de KAL i de pista (cada `Clue` en porta una d'obligatòria). La reunió d'una
+  pista no alliberada NO la veuen les participants: ho fa complir la RLS
+  (`meetings_select_member` amb `is_clue_released(clue_id)`), no només la UI.
+  Fase 2: múltiples reunions per idioma dins del mateix àmbit
 - **Aules de xat (`debate_rooms`)** — xat escrit asíncron, SEMPRE a nivell de
   KAL, mai per pista. Poden ser vàries (típicament per idioma). Els missatges
   (`debate_messages`) NO tenen clueId. L'organitzadora hi participa quan pot;
@@ -227,25 +205,12 @@ pinnedMessage · inviteToken
 - Al backend, DDD amb hexagonal: domini pur (sense Symfony/DBAL) separat
   d'infraestructura; sense sobre-arquitecturar l'MVP. Composició (p.ex.
   `KalResponse` amb la fitxa incrustada perquè el FE no faci una segona crida)
-  es fa a la capa `Ui/`, no al repositori
+  es fa a la capa `UI/`, no al repositori
 
 ## Abast per fases del model
-- **MVP** exposa a la UI: Kal + Clues bàsiques + PatternInfo (fitxa progressiva,
-  dins de Kal, sense cercador) + Participation + Photos + reunions visuals a
-  nivell de KAL + 1 aula de xat (candidata, pendent d'entrevistes)
-- **Fase 2:** múltiples aules de xat per idioma, vídeos gravats per pista,
-  alliberament programat amb recordatoris, reunions visuals lligades a pista +
-  múltiples per idioma
-- **Fase Patterns (post-MVP):** extreure PatternInfo al seu bounded context
-  propi `src/Patterns/` (agregat, repositori, event de creació). Habilita la
-  venda de patrons a través del producte (amb descompte a l'organitzadora que
-  hi ven) i `visibility='discoverable'` per al cercador/recomanador. L'esquema
-  de l'MVP ja ho preveu; l'extracció serà neta
-- **Fase IA (línia pròpia, post-MVP):** assistent de creació per a
-  l'organitzadora — llegir el PDF del patró per pre-omplir PatternInfo, suggerir
-  descripcions i estructura de pistes, detectar llanes/gruixos. Línia
-  diferenciada del recomanador, tot i compartir el corpus de patrons
-  estructurats. El MCP de llanes/patrons (read-only) hi connecta
+
+El roadmap complet per fases (MVP · Fase 2 · Fase Patterns · Fase IA) viu a la skill
+`product-context` — invoca-la per a decisions de producte o de priorització.
 
 ## Funcionalitats MVP (i NOMÉS aquestes)
 1. CRUD de KALs i pistes (organitzadora)
@@ -253,7 +218,8 @@ pinnedMessage · inviteToken
 3. Pujar fotos per pista + galeria comuna del KAL
 4. Recordatoris per email (inici de ronda; trobada 30 min abans)
 5. Reunions visuals = enllaç extern (Zoom/Meet) + horari, a nivell de KAL (poden
-   ser vàries). NO vídeo integrat; les lligades a pista i el multi-idioma són Fase 2
+   ser vàries) i lligades a pista (una per pista, obligatòria). NO vídeo
+   integrat; el multi-idioma dins del mateix àmbit és Fase 2
 6. Moderació: organitzadora amaga fotos i expulsa participants
 7. Mètriques de validació: % participants amb ≥2 fotos, retorn setmanal, 2n KAL creat
 
@@ -266,11 +232,12 @@ KAL no viu; es valida a les entrevistes abans de construir-lo.
 comentaris/reaccions, integracions Instagram/Discord, push notifications,
 pagaments (Stripe), vídeo integrat (Daily.co/Jitsi), venda de patrons, Pattern
 com a context separat (Fase Patterns), múltiples aules de xat per idioma,
-reunions lligades a pista, assistent de creació amb IA (Fase IA), recomanador.
+múltiples reunions per idioma dins d'un mateix àmbit, assistent de creació amb
+IA (Fase IA), recomanador.
 
 ## Convencions
 - Estructura backend: **hexagonal + CQRS per bounded context** (no per capa
-  tècnica). Contexts de l'MVP: `src/Users/`, `src/Kals/` (i `src/Patterns/`
+  tècnica). Contexts de l'MVP: `src/User/`, `src/Kal/` (i `src/Pattern/`
   arribarà a la Fase Patterns). Cada context té:
     - `Domain/` — entitats, value objects i invariants (PHP pur, sense Symfony ni
       DBAL) i el port: una **interface** del repositori (p.ex.
@@ -280,8 +247,14 @@ reunions lligades a pista, assistent de creació amb IA (Fase IA), recomanador.
       (command.bus / query.bus / event.bus, transport sync a l'MVP)
     - `Infrastructure/` — adaptadors: `DbalKalRepository` (SQL directe amb
       Doctrine DBAL, reconstrucció manual de l'agregat, transaccions explícites)
-    - `Ui/` — controllers de Symfony: tradueixen HTTP ↔ Commands/Queries via el
-      bus, mai toquen SQL ni instancien handlers
+    - `UI/` — controllers de Symfony: tradueixen HTTP ↔ Commands/Queries via el
+      bus, mai toquen SQL ni instancien handlers. **Un context nou s'ha de
+      registrar a MÀ als dos fitxers de config**: `config/routes.yaml` (un
+      `resource:` amb `type: attribute` apuntant al directori de controllers,
+      p.ex. `../src/Kal/UI/Http/`) i `config/services.yaml` (el mateix directori
+      amb `tags: ['controller.service_arguments']`). Sense el primer les rutes
+      dels atributs `#[Route]` no existeixen i l'endpoint dona 404 sense cap
+      error visible
     - `src/Shared/` — transversal: connexió DBAL, autenticació JWT (JWKS de
       Supabase), busos, events de domini entre contexts, logging
 - **Qualitat — estat actual vs. objectiu:** l'estat *actual* és `phpstan.dist.neon`
@@ -291,15 +264,45 @@ reunions lligades a pista, assistent de creació amb IA (Fase IA), recomanador.
   `@Symfony` (`.php-cs-fixer.dist.php`), no PSR-12 sol. A banda d'això:
   strict_types=1 a tot arreu, readonly i tipats exhaustius. Deptrac (o test
   d'arquitectura equivalent) ha de fer complir que `Domain/` no depèn de
-  Symfony/DBAL ni de `Infrastructure/`/`Ui/` del seu context — encara no
+  Symfony/DBAL ni de `Infrastructure/`/`UI/` del seu context — encara no
   configurat (veure "Agent Harness" més avall)
-- **Tests:** PHPUnit; els d'integració contra Supabase **local** (mai producció)
+- **Tests:** Pest (sobre PHPUnit); els d'integració contra Supabase **local** (mai
+  producció). Al backend hi viuen els unitaris de domini, els d'integració dels
+  repositoris DBAL i els funcionals HTTP (`symfony/browser-kit`) — **cap test de
+  navegador**
+- **E2E: Playwright natiu al repo del frontend, no al backend** (decidit
+  2026-07-30). Pest 4 pot fer browser testing amb `pest-plugin-browser` (que per
+  sota TAMBÉ és Playwright), però es va descartar: (a) la superfície E2E real és
+  gairebé tota frontend — magic links, pujada de fotos i compressió al client van
+  directes a Supabase i no passen per Symfony; (b) obligaria a posar Node i els
+  binaris de navegador (~1 GB) a la imatge PHP-FPM; (c) l'ergonomia del plugin és
+  Laravel-first (l'app arrenca sola, helpers d'auth/DB) i amb Symfony et quedes
+  apuntant a una URL absoluta, perdent trace viewer/codegen/UI mode i els tipus
+  d'openapi-typescript que el frontend ja té. Abast a l'MVP: 2-3 journeys
+  (inscripció des del mòbil via enllaç d'invitació, pujar foto a una pista, crear
+  KAL); els magic links es llegeixen del servidor de correu que ja aixeca
+  `supabase start`
 - **Principi d'API multi-client:** el backend exposa contractes per context
   (OpenAPI) pensats perquè hi hagi múltiples clients — avui el frontend Vue
   (lectura+escriptura, JWT d'usuària) i demà el MCP de llanes/patrons (només
   lectura, token de servei). No dissenyar l'API assumint un únic client
 - Secrets NOMÉS a `.env.local` (mai al Dockerfile ni al Git)
 - Comentaris i textos d'UI: català. Codi (noms, classes): anglès
+- **Docblocks: no descriure què fa la funció.** El nom i la signatura ja ho diuen;
+  un `/** Creates a Kal */` sobre `create()` és soroll que envelleix malament.
+  S'escriuen NOMÉS les anotacions que aporten informació que PHP no pot expressar
+  i que el toolchain exigeix:
+    - `@throws` per cada excepció pròpia — obligatori per
+      `missingCheckedExceptionInThrows`, comprovat recursivament per tota la
+      cadena de crides
+    - `@param`/`@return` només per **tipus iterables** (`list<string>`,
+      `array{fileName: string, ...}`) — PHPStan els exigeix des del level 6
+      (`missingType.iterableValue`) i sense ells `make qa` falla. En propietats
+      promogudes van al docblock del **constructor**, no al de la classe: un
+      `@param` en un docblock de classe és decoratiu, PHPStan no el llegeix
+  Res més: cap `@param string $name` que repeteixi la signatura, cap `@return void`,
+  cap descripció en prosa. Comentaris en línia sí, però només per explicar un
+  *per què* que el codi no pot dir
 - RGPD: consentiment al registre, dret a esborrat de compte i dades, fotos
   visibles només per membres del KAL
 
@@ -340,15 +343,7 @@ Limitació coneguda de l'MVP, no una decisió definitiva.
 - En tests d'integració amb FKs: l'ordre de neteja dels fixtures importa
 
 ## Context de negoci (per decisions de producte)
-- Validar primer gratis amb 1-2 organitzadores "fundadores"; monetitzar
-  (subscripció 10-15 €/mes per organitzadora) quan hi hagi 20-30 actives
-- Objectiu personal: ~500 €/mes d'ingressos extra
-- La desenvolupadora és docent de la Generalitat: cal compatibilitat aprovada
-  abans de generar ingressos (tràmit pendent, no bloqueja el desenvolupament)
-- Via paral·lela futura: MCP de llana/patrons com a canal d'adquisició. És un
-  **client read-only** de l'API del producte (només GET, mateix contracte
-  OpenAPI): consulta patrons/KALs `discoverable` i dades estructurades per
-  recomanar/respondre. No escriu MAI, cap acció en nom de l'usuària; auth de
-  lectura amb token de servei, sense accés a contingut privat d'altri. Hi ha SDK
-  de MCP per PHP; si convingués fer-lo en Python, és un mòdul petit i aïllat
-- El pla complet de tasques és a Notion ("Eina KALs — Tauler de tasques")
+
+Monetització, validació amb organitzadores fundadores i el MCP de llanes com a canal
+d'adquisició: tot a la skill `product-context`. El pla complet de tasques és a Notion
+("Eina KALs — Tauler de tasques").

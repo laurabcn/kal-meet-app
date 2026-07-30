@@ -3,10 +3,10 @@ services:
         autowire: true
         autoconfigure: true
         bind:
-            $commandBus: '@command.bus'
-            $queryBus: '@query.bus'
-            $eventBus: '@event.bus'
-            $externalMessageBus: '@external_message.bus'
+            Symfony\Component\Messenger\MessageBusInterface $commandBus: '@command.bus'
+            Symfony\Component\Messenger\MessageBusInterface $queryBus: '@query.bus'
+            Symfony\Component\Messenger\MessageBusInterface $eventBus: '@event.bus'
+            Symfony\Component\Messenger\MessageBusInterface $externalMessageBus: '@external_message.bus'
 
     App\:
         resource: '../src/'
@@ -15,4 +15,8 @@ services:
 
     App\Controller\:
         resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+    App\Kal\UI\Http\:
+        resource: '../src/Kal/UI/Http/'
         tags: ['controller.service_arguments']

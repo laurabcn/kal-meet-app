@@ -28,3 +28,28 @@ arch('nothing depends on infrastructure except infrastructure itself and the com
     ->expect('App\Infrastructure')
     ->toOnlyBeUsedIn('App\Infrastructure')
     ->ignoring('App\Kernel');
+
+// Real guardrails for the Kal bounded context (App\Kal\...): these mirror the
+// generic template rules above, scoped to the actual namespaces so they
+// enforce layering as Kal\Domain/Application/Infrastructure are built out.
+
+arch('kal domain does not depend on kal application')
+    ->expect('App\Kal\Domain')
+    ->not->toUse('App\Kal\Application');
+
+arch('kal domain does not depend on kal infrastructure')
+    ->expect('App\Kal\Domain')
+    ->not->toUse('App\Kal\Infrastructure');
+
+arch('kal domain does not depend on any framework')
+    ->expect('App\Kal\Domain')
+    ->not->toUse(['Symfony', 'Doctrine']);
+
+arch('kal application does not depend on kal infrastructure')
+    ->expect('App\Kal\Application')
+    ->not->toUse('App\Kal\Infrastructure');
+
+arch('nothing depends on kal infrastructure except kal infrastructure itself and the composition root')
+    ->expect('App\Kal\Infrastructure')
+    ->toOnlyBeUsedIn('App\Kal\Infrastructure')
+    ->ignoring('App\Kernel');
