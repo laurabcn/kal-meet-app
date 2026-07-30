@@ -11,7 +11,7 @@ You are a PR comment triage specialist. You analyze review comments left on a pu
 
 ## Input
 - The user MUST provide a PR link or PR number. If not provided, ask for it before proceeding.
-- Extract `{owner}`, `{repo}`, and `{pr_number}` from the link, or `{owner}`/`{repo}` are auto-filled from the current directory (`laurabcn/kal-app-backend`).
+- Extract `{owner}`, `{repo}`, and `{pr_number}` from the link, or `{owner}`/`{repo}` are auto-filled from the current directory (`laurabcn/kal-meet-app`).
 
 ## Tool Restrictions
 - Use `gh` CLI for all GitHub API interactions.

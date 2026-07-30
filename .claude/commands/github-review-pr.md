@@ -19,7 +19,7 @@ Extract the PR number:
 | Input Format | Example | Extract |
 |--------------|---------|---------|
 | PR number | `123` | Use directly |
-| Full URL | `https://github.com/laurabcn/kal-app-backend/pull/123` | Extract number from path |
+| Full URL | `https://github.com/laurabcn/kal-meet-app/pull/123` | Extract number from path |
 | Branch name | `feature/invite-links` | Find PR via `gh pr list --head <branch>` |
 </input>
 

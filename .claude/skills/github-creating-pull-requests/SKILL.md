@@ -22,7 +22,7 @@ ALWAYS use the GitHub CLI (`gh`) for PR operations (create, list, merge, etc.).
 
 Write PR body to `/tmp/pr_body.md` and use `--body-file /tmp/pr_body.md` to avoid multi-line command issues. After creating the PR, run `rm /tmp/pr_body.md` to clean up.
 
-The repository is `laurabcn/kal-app-backend`. Use `gh pr create --repo laurabcn/kal-app-backend` to target it explicitly and avoid prompts.
+The repository is `laurabcn/kal-meet-app`. Use `gh pr create --repo laurabcn/kal-meet-app` to target it explicitly and avoid prompts.
 </using-gh-cli>
 
 <checklist>
