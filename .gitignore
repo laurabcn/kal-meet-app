@@ -1,20 +1,21 @@
 /vendor/
+/var/
+
 /.idea/
 /.vscode/
-/.claude/
-/var/
-.phpunit.result.cache
-.php-cs-fixer.cache
+/.claude/settings.local.json
+
 /.env
 /.env.local
 /.env.*.local
 /config/reference.php
-/docs
-/tmp
-/supabase
-/docker
-/config
-docker-compose.yml
-/Controller/*
-Kernel.php
+
+.phpunit.result.cache
 .phpunit.cache
+.php-cs-fixer.cache
+/tmp/
+
+# Generats per `supabase start` — contenen credencials de dev i artefactes de build.
+# La resta de supabase/ (config.toml, migrations/) va versionada a propòsit.
+/supabase/.temp/
+/supabase/.branches/
