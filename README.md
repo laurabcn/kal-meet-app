@@ -16,40 +16,135 @@ model, the product scope, and the conventions this codebase follows.
   authentication and file storage. Migrations are plain SQL under
   `supabase/migrations/`, versioned in Git, with no dependency on Doctrine
   Migrations.
-- **Testing**: Pest.
+- **Auth on this API**: Symfony Security verifies the Supabase user JWT via JWKS
+  (asymmetric). Deny-by-default; only `GET /` is public. Spec:
+  [`docs/specs/supabase-jwt-authentication.md`](./docs/specs/supabase-jwt-authentication.md).
+- **Testing**: Pest (`make qa` stays offline; `make test-db` hits local Supabase).
 - **Static analysis**: PHPStan at `level: max`, with checked-exception analysis
   enabled (`phpstan.dist.neon`).
 - **Code style**: PHP CS Fixer, `@PER-CS` + `@Symfony` rulesets
   (`.php-cs-fixer.dist.php`).
-- **Docker**: `docker/php/Dockerfile` (PHP 8.5-cli + Composer, with `pdo_pgsql`)
-  and `docker-compose.yml` with `app`, `web`, `pest`, `phpstan` and `cs-fixer`
-  services. Everything runs in containers — **no local PHP installation**, so every
-  command goes through `make`.
+- **Docker**: PHP-FPM (`docker/php/Dockerfile`) + nginx (`docker/nginx/`), plus
+  one-shot services for Pest / PHPStan / CS Fixer. Everything runs in containers —
+  **no local PHP installation**, so every command goes through `make`. A root
+  `Dockerfile` is aimed at deploy (Fly/Railway). CI mirrors `make qa` in
+  `.github/workflows/ci.yml`.
 
 The frontend (Vue 3 + Vite + TypeScript) and its Playwright end-to-end tests live in
 their own repository. The frontend talks to Supabase directly for auth and photo
 uploads, guarded by RLS policies; this backend handles only what cannot live in the
-client — invite-token validation, emails and reminders, crons, and signed photo URLs.
+client — JWT-gated write APIs, invite-token validation, emails and reminders, crons,
+and signed photo URLs.
 
 ## Quick start
 
 ```bash
-make setup       # build the image, install Composer dependencies
-supabase start   # local Postgres + auth + storage (its own containers, via the Supabase CLI)
-supabase db push # apply the migrations in supabase/migrations/
-make qa          # PHPStan + CS Fixer (dry-run) + Pest
+cp .env.example .env   # then fill Supabase / secrets as needed (.env.local for secrets)
+make setup             # build the image, install Composer dependencies
+supabase start         # local Postgres + auth + storage (Supabase CLI containers)
+supabase db push       # apply supabase/migrations/
+make up                # PHP-FPM + nginx → http://localhost:8080
+make qa                # PHPStan + CS Fixer (dry-run) + Pest
 ```
 
 `make help` lists every target, grouped by category. The ones you will use most:
 
 ```bash
-make test        # run Pest
+make up          # start API (http://localhost:8080; override with HTTP_PORT=…)
+make test        # run Pest (no DB)
+make test-db     # Pest against local Supabase (needs `supabase start`)
 make run-arch    # only the architecture tests (tests/Arch)
 make bash        # interactive shell in the app container
-make serve       # serve the API at http://localhost:8000
 ```
 
-Integration tests run against **local** Supabase, never production.
+## Manual API smoke (Postman)
+
+Import the collection and local environment from `postman/`:
+
+- `postman/kal-meet-app.postman_collection.json`
+- `postman/local.postman_environment.json`
+
+Set `baseUrl` (default `http://localhost:8080`) and an `accessToken`. That token must be a **user** Supabase Auth JWT (`access_token` from a session) — not the `ANON_KEY` / `SERVICE_ROLE_KEY` from `supabase status`.
+
+### Getting an `access_token`
+
+From this repo root (with `supabase start`), use the Cursor skill **`supabase-access-token`** (ask the agent with email + password), or run the script it ships:
+
+```bash
+# optional --signup creates the user if missing
+~/.cursor/skills/supabase-access-token/scripts/fetch-access-token.sh \
+  'you@example.com' 'your-password' --signup
+```
+
+The script reads `API_URL` and `ANON_KEY` from `supabase status`, logs in via
+`/auth/v1/token?grant_type=password`, copies the `access_token` to the clipboard,
+and prints it. Paste that value into Postman’s `accessToken` / Bearer field.
+
+The user’s `sub` must have a row in `profiles` (created by `handle_new_user()` on
+signup); otherwise the API responds `401` with `auth_profile_not_found`.
+
+## Skills
+
+Two layers of agent skills show up in Cursor / Claude Code. Invoke them by name
+(e.g. `@reviewing-branch`) or by asking in plain language that matches their
+description.
+
+### Personal (any project) — `~/.cursor/skills/`
+
+These live on your machine, not in this repo. Useful across KAL and other work:
+
+| Skill | What it does |
+| --- | --- |
+| `reviewing-branch` | Structured review of the branch/PR (+ working tree): conventions, Blocker/Major/Minor, auth/infra/deploy. |
+| `describing-pr` | English PR body from the open PR or branch vs base; uses `.github/pull_request_template.md` when present; copies to clipboard. |
+| `supabase-access-token` | Fetches a Supabase **user** `access_token` (email + password, optional signup); clipboard + stdout. Script: `~/.cursor/skills/supabase-access-token/scripts/fetch-access-token.sh`. |
+
+### Project — `.claude/skills/`
+
+Shipped with this repository. Grouped by use:
+
+**Product & requirements**
+
+| Skill | What it does |
+| --- | --- |
+| `product-context` | MVP / Fase 2 / Patterns / IA roadmap and business context for prioritisation. |
+| `understanding-user-problem` | Clarify an ambiguous request before writing requirements. |
+| `defining-requirements` | Turn a clarified problem into an implementation-ready spec. |
+
+**Day-to-day engineering**
+
+| Skill | What it does |
+| --- | --- |
+| `logging` | How to emit structured PSR-3 logs (static message + context; Monolog → stderr). |
+| `creating-migration-files` | Migration lifecycle via Makefile — never hand-write migration files. |
+| `fix-flaky-test` | Diagnose and fix flaky Pest tests without masking the flake. |
+| `verification-before-completion` | Evidence-first “done / green / ready” gate. |
+| `verifying-documentation` | Fact-check AI-written docs against the code. |
+
+**GitHub**
+
+| Skill | What it does |
+| --- | --- |
+| `github-writing-commits` | Conventional Commits, atomic changes. |
+| `github-managing-branches` | Branch naming and dependent features. |
+| `github-creating-pull-requests` | Draft PRs, title rules, `gh` usage. |
+| `github-creating-pull-request-body` | PR body guidelines. |
+| `pr-description` | Fill the PR template (English), optional Notion link, copy to clipboard. |
+| `github-fetching-pull-request-review-comments` | Fetch inline review comments. |
+| `github-posting-pull-request-review` | Post inline review comments. |
+| `github-answering-pull-request-review-comments` | Reply to inline review comments. |
+| `reviewing-code` | Full code-review workflow for this repo’s conventions. |
+| `triage-pr-comments` | Triage comments left on your PR (Problem / Suggestion / Noise) and act. |
+| `validate-pr` | Check the branch against its Notion task and/or `/spec` file. |
+
+**Notion**
+
+| Skill | What it does |
+| --- | --- |
+| `notion-creating-task` | Create a board task via Notion MCP. |
+| `notion-fetching-task` | Fetch and structure a task. |
+| `notion-task-body` | How to write task descriptions. |
+| `start-task` | Resolve a Notion task → branch + implementation brief. |
 
 ## Layout
 
@@ -57,23 +152,26 @@ Hexagonal + CQRS, organised **per bounded context** rather than per technical la
 
 ```
 src/
-  Shared/       the domain-agnostic kernel: four Messenger buses, value objects,
-                AggregateRoot, DBAL connection, domain events between contexts
-  Kal/          the Kal aggregate — clues, meetings, and the KAL write paths
-  Controller/   the health-check endpoint, outside any context
+  Shared/       CQRS buses, value objects, AggregateRoot, DBAL wiring,
+                Supabase JWT auth (JWKS, firewall helpers)
+  User/         identity — profiles.id (ULID) ↔ external_id (Supabase auth uuid);
+                no stored role (role is per-KAL)
+  Kal/          the Kal aggregate — clues, meetings, write paths (e.g. POST /kal)
+  Controller/   health check (GET /), outside any context
 ```
-
-`src/User/` (identity — profile only; a person's role is derived per KAL and never
-stored) is planned but not written yet.
 
 Each context has the same four layers: `Domain/` (pure PHP — entities, value
 objects, invariants, and the repository interface), `Application/` (commands and
 queries dispatched through the buses), `Infrastructure/` (DBAL adapters) and `UI/`
-(controllers that translate HTTP to messages and never touch SQL).
+(controllers that translate HTTP to messages and never touch SQL). Controllers use
+`#[AsController]` so action arguments resolve correctly.
 
-**A new context must be registered by hand in two files** — `config/routes.yaml`
-and `config/services.yaml`. Miss the first and the `#[Route]` attributes are never
-read: the endpoint 404s with no visible error.
+**Routing:** `config/routes/*.yaml` is loaded automatically (one file per context,
+`type: attribute`). **Services:** `config/services.yaml` only `imports`
+`config/services/*.yaml` — that directory is **not** auto-loaded; order matters
+(`app.yaml` glob first, then overrides such as `security.yaml`). Miss a routes
+file and `#[Route]` attributes are never read: the endpoint 404s with no visible
+error.
 
 ## The workflow
 
@@ -131,9 +229,14 @@ Before trusting anything, run the gate:
 make qa
 ```
 
-PHPStan (level max), the CS Fixer dry-run, and the full Pest suite.
-**Everything must pass.** There is no CI yet, so this local gate is the only safety
-net — do not skip it.
+PHPStan (level max), the CS Fixer dry-run, and the full Pest suite (no network/DB).
+CI runs the same checks on push/PR. For persistence against real schema:
+
+```bash
+make test-db   # needs `supabase start`
+```
+
+**Everything that should pass must pass** before you merge.
 
 ### Step 4 — Review and open the PR
 
@@ -187,11 +290,10 @@ task instead of from commits alone. These are independent of the `/spec` →
 - `phpstan.dist.neon`'s `missingCheckedExceptionInThrows` check means **any method
   that throws a custom exception must document it with `@throws`**, verified
   recursively through the whole call chain.
-- Error responses carry **codes**, never human sentences (`kal_not_found`, not
-  "KAL not found") — translation lives in the frontend.
+- Error responses carry **codes**, never human sentences (`kal_not_found`,
+  `auth_token_missing`, …) — translation lives in the frontend.
 - Secrets go in `.env.local` only — never in the Dockerfile, never in Git. The
   files `supabase start` generates under `supabase/.temp/` contain dev credentials
   and are ignored on purpose.
-- The `web` service uses PHP's built-in dev server (`php -S`), not a
-  production-grade setup — it is for local iteration. Deployment builds from
-  `docker/php/Dockerfile`.
+- Local HTTP is **nginx → PHP-FPM** (`make up`). Deploy image is the root
+  `Dockerfile` (FPM); pair it with a reverse proxy in the host platform.

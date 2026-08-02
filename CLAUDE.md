@@ -37,13 +37,28 @@ Totes les comandes van via `make` (tot corre a Docker) — `make help` per a la 
 completa i agrupada. El gate abans de donar feina per acabada: **`make qa`** (PHPStan +
 CS Fixer dry-run + Pest).
 
-There is no `bin/console`; this project only pulls in `symfony/console` + `symfony/dependency-injection` (plus the optional HTTP skeleton), not a CLI application skeleton — add one if needed.
+**`make qa` és hermètic a propòsit**: no toca ni la xarxa ni cap BD, corre en un segon i
+funciona sense res aixecat (`.env.test` apunta a un Postgres inabastable expressament).
+Els tests que SÍ que toquen Postgres viuen a part, amb la seva config
+(`phpunit.db.xml.dist`) i la seva comanda: **`make test-db`**. Van contra la Supabase
+local amb l'esquema real de `supabase/migrations/` — cap taula creada des dels tests, que
+és el que evita que codi i migracions se separin sense que res ho digui. Demanen
+`supabase start` (i `supabase db reset` el primer cop) i **fallen** si no hi poden
+connectar, mai se salten. Corre'ls quan toquis persistència i abans de fer merge.
+
+Cap fitxer de test es pot quedar fora de les dues configs sense adonar-se'n: ho vigila
+`tests/Arch/TestSuiteCoverageTest.php` (ja va passar amb `tests/User/`, 24 tests que no
+s'executaven).
+
+`bin/console` existeix des de la branca de seguretat (l'hi va posar la recepta de Flex de `symfony/security-bundle`) i va per Docker com tota la resta: `docker compose run --rm app php bin/console <cmd>`. Encara no hi ha cap comanda pròpia — serveix per als `debug:*` de Symfony, que són l'única manera de comprovar coses que els tests no veuen (`debug:router`, `debug:container --tag=...`).
 
 ## Architecture
 
 ### Composition root
 
 `src/Kernel.php` uses `MicroKernelTrait` with no overrides — all wiring is convention-based config in `config/`.
+
+Els serveis estan partits per tema a `config/services/`, però amb dues asimetries de Symfony que cal saber: `config/routes/*.yaml` es carrega sol i **`config/services/` no** — cada fitxer necessita la seva línia a `imports:` de `config/services.yaml` (que no defineix res, només diu què es carrega i en quin ordre). I **l'ordre hi compta**: `services/app.yaml` registra tot `src/` amb un glob, i el que ve després *redefineix* serveis que aquell glob ja havia registrat, per donar-los arguments que l'autowiring no pot deduir (els `%env()%` de `services/security.yaml`). Al revés, el glob se'ls menjaria. Tercera trampa relacionada: **`_defaults` és per fitxer**, o sigui que el `bind` dels busos de Messenger viu a `services/app.yaml` i no arriba a la resta.
 
 ### `src/Shared` — the CQRS/messaging kernel
 
@@ -248,13 +263,20 @@ IA (Fase IA), recomanador.
     - `Infrastructure/` — adaptadors: `DbalKalRepository` (SQL directe amb
       Doctrine DBAL, reconstrucció manual de l'agregat, transaccions explícites)
     - `UI/` — controllers de Symfony: tradueixen HTTP ↔ Commands/Queries via el
-      bus, mai toquen SQL ni instancien handlers. **Un context nou s'ha de
-      registrar a MÀ als dos fitxers de config**: `config/routes.yaml` (un
-      `resource:` amb `type: attribute` apuntant al directori de controllers,
-      p.ex. `../src/Kal/UI/Http/`) i `config/services.yaml` (el mateix directori
-      amb `tags: ['controller.service_arguments']`). Sense el primer les rutes
-      dels atributs `#[Route]` no existeixen i l'endpoint dona 404 sense cap
-      error visible
+      bus, mai toquen SQL ni instancien handlers. **Tot controller porta
+      `#[AsController]`**: l'`autoconfigure` el tradueix a
+      `controller.service_arguments` i no cal registrar cap directori de
+      controllers a `config/services/`. Oblidar-lo no peta — el controller es
+      registra igual pel glob d'`App\`, però es queda sense resolució
+      d'arguments d'acció (`#[CurrentUser]`, `#[MapRequestPayload]`…) — així que
+      ho fa complir un arch test a `tests/Arch/ConventionsTest.php`, no la bona
+      fe.
+      **L'únic registre a mà d'un context nou són les rutes**:
+      `config/routes/<context>.yaml`, amb un `resource:` amb `type: attribute`
+      apuntant al directori de controllers (p.ex. `../../src/Kal/UI/Http/`).
+      Sense això els atributs `#[Route]` no existeixen i l'endpoint dona 404
+      sense cap error visible. `config/routes/*.yaml` el carrega sol el
+      `MicroKernelTrait`
     - `src/Shared/` — transversal: connexió DBAL, autenticació JWT (JWKS de
       Supabase), busos, events de domini entre contexts, logging
 - **Qualitat — estat actual vs. objectiu:** l'estat *actual* és `phpstan.dist.neon`
@@ -322,9 +344,14 @@ Pla previst:
 - `make test` (phpunit contra Supabase **local**)
 - Tot junt: `make check`
 
-**No hi ha CI encara** — mentre el pla anterior no estigui construït, l'únic
-gate real en local abans de comitejar és `make qa` (veure `## Commands`).
-Limitació coneguda de l'MVP, no una decisió definitiva.
+**CI**: `.github/workflows/ci.yml` corre a cada push a `main` i a cada PR els
+mateixos tres passos que `make qa` (CS Fixer dry-run, PHPStan, Pest) amb PHP 8.5.
+
+El que CI **no** corre és `make test-db`: no hi ha Supabase al runner. Conseqüència
+a tenir present — els tests contra Postgres només s'executen quan algú els corre en
+local, o sigui que poden podrir-se sense que ningú se n'assabenti. Mentre no hi hagi
+un servei de Postgres al workflow, la disciplina és córrer-los abans de fer merge de
+qualsevol canvi de persistència.
 
 ### Convencions no negociables sense motiu
 - Conventional Commits (`feat:`, `fix:`, `refactor:`...)

@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# Autenticació (docs/specs/supabase-jwt-authentication.md). Infraestructura
+# transversal, no d'un context: viu a Shared i el firewall de
+# config/packages/security.yaml hi apunta pel nom de la classe.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Els escalars de configuració no els resol l'autowiring: van explícits.
+    App\Shared\Infrastructure\Symfony\Security\HttpJwksFetcher:
+        arguments:
+            $jwksUrl: '%env(SUPABASE_JWKS_URL)%'
+
+    App\Shared\Infrastructure\Symfony\Security\JwksKeyProvider:
+        arguments:
+            $ttlSeconds: '%env(int:SUPABASE_JWKS_TTL)%'
+
+    App\Shared\Infrastructure\Symfony\Security\SupabaseTokenHandler:
+        arguments:
+            $issuer: '%env(SUPABASE_JWT_ISSUER)%'
+            $audience: '%env(SUPABASE_JWT_AUDIENCE)%'

@@ -53,3 +53,31 @@ arch('nothing depends on kal infrastructure except kal infrastructure itself and
     ->expect('App\Kal\Infrastructure')
     ->toOnlyBeUsedIn('App\Kal\Infrastructure')
     ->ignoring('App\Kernel');
+
+// Real guardrails for the User bounded context (App\User\...). It ships without
+// an Application layer on purpose (read path only, see
+// docs/specs/supabase-jwt-authentication.md §4), so there is no vacuous
+// App\User\Application rule here: add one the day a command or query exists.
+
+arch('user domain does not depend on user infrastructure')
+    ->expect('App\User\Domain')
+    ->not->toUse('App\User\Infrastructure');
+
+arch('user domain does not depend on any framework')
+    ->expect('App\User\Domain')
+    ->not->toUse(['Symfony', 'Doctrine']);
+
+arch('nothing depends on user infrastructure except user infrastructure itself and the composition root')
+    ->expect('App\User\Infrastructure')
+    ->toOnlyBeUsedIn('App\User\Infrastructure')
+    ->ignoring('App\Kernel');
+
+// Bounded contexts talk through Shared, never to each other directly.
+
+arch('the user context does not depend on the kal context')
+    ->expect('App\User')
+    ->not->toUse('App\Kal');
+
+arch('the kal context does not depend on the user context')
+    ->expect('App\Kal')
+    ->not->toUse('App\User');

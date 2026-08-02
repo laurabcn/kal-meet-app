@@ -27,8 +27,9 @@ composer-require-dev: ## Require a dev package. Example: make composer-require-d
 ##@ 🛠️ Utility
 bash: ## Open an interactive shell in the app container
 	@$(RUN) app bash
-serve: ## Serve the app over HTTP at http://localhost:8000 (only if using the Symfony HTTP skeleton)
-	@$(DOCKER_COMPOSE) up web
+up: ## Start PHP-FPM + nginx (http://localhost:8080)
+	@$(DOCKER_COMPOSE) up -d --build app nginx
+serve: up ## Alias of `up`
 
 ##@ 🧪 Test
 test: run-pest ## Run the Pest test suite
@@ -41,6 +42,8 @@ run-tests-filter: ## Run Pest filtered by name. Example: make run-tests-filter p
 	@$(RUN) app vendor/bin/pest --filter "$(p)"
 run-tests-retry: ## Re-run only the tests that failed last time
 	@$(RUN) app vendor/bin/pest --retry --display-errors -v
+test-db: ## Run the tests that hit real Postgres (needs `supabase start`; NOT part of qa)
+	@$(RUN) app vendor/bin/pest -c phpunit.db.xml.dist
 
 ##@ 🎨 Quality assurance
 qa: run-phpstan run-cs-fixer test ## Run the full quality assurance suite

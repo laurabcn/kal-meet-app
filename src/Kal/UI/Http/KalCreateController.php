@@ -7,12 +7,16 @@ namespace App\Kal\UI\Http;
 use App\Kal\Application\Command\CreateKal\CreateKalCommand;
 use App\Shared\Application\Command\CommandBusInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
+use App\Shared\Infrastructure\Symfony\Security\SupabaseUser;
 use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
+#[AsController]
 final readonly class KalCreateController
 {
     public function __construct(
@@ -22,10 +26,10 @@ final readonly class KalCreateController
 
     /** @throws \InvalidArgumentException */
     #[Route('/kal', name: 'kal_create', methods: ['POST'])]
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(Request $request, #[CurrentUser] SupabaseUser $user): JsonResponse
     {
         try {
-            $command = self::buildCommand($request->toArray());
+            $command = self::buildCommand($request->toArray(), $user->id());
         } catch (JsonException) {
             return self::badRequest('kal_invalid_json');
         } catch (InvalidArgumentException $exception) {
@@ -39,13 +43,16 @@ final readonly class KalCreateController
 
     /**
      * @param array<array-key, mixed> $payload
+     * @param non-empty-string        $organizerId ULID de `profiles.id`, sortit del token
      *
      * @throws InvalidArgumentException
      */
-    private static function buildCommand(array $payload): CreateKalCommand
+    private static function buildCommand(array $payload, string $organizerId): CreateKalCommand
     {
+        self::rejectTokenDerived($payload, 'organizerId');
+
         return new CreateKalCommand(
-            self::requiredString($payload, 'organizerId'),
+            $organizerId,
             self::requiredString($payload, 'name'),
             self::requiredString($payload, 'startsOn'),
             self::requiredList($payload, 'locales'),
@@ -56,6 +63,22 @@ final readonly class KalCreateController
             self::optionalString($payload, 'coverPath'),
             self::optionalList($payload, 'meetings'),
         );
+    }
+
+    /**
+     * Qui organitza surt del token i de cap altre lloc. Ignorar el camp en
+     * comptes de rebutjar-lo deixaria el client creient que ha triat
+     * l'organitzadora: es rebutja perquè el desacord es vegi (spec §3.4).
+     *
+     * @param array<array-key, mixed> $payload
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function rejectTokenDerived(array $payload, string $key): void
+    {
+        if (\array_key_exists($key, $payload)) {
+            throw new InvalidArgumentException('kal_invalid_payload');
+        }
     }
 
     /**

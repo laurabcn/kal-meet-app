@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Suite `db`: els únics tests que toquen Postgres de veritat, contra la
+    Supabase local amb l'esquema real de supabase/migrations/. Config a part
+    perquè `make qa` segueixi sent hermètic i no depengui de tenir la BD
+    aixecada; aquests es corren amb `make test-db` quan es toca persistència.
+
+    Exigeixen `supabase start` i, la primera vegada, `supabase db reset`. Si no
+    hi poden connectar FALLEN, no se salten: si has demanat córrer-los és que
+    els vols córrer.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.db.cache"
+>
+    <php>
+        <ini name="display_errors" value="1"/>
+        <ini name="error_reporting" value="-1"/>
+        <server name="APP_ENV" value="test" force="true"/>
+        <server name="KERNEL_CLASS" value="App\Kernel"/>
+    </php>
+
+    <testsuites>
+        <testsuite name="db">
+            <directory>tests/Kal/Infrastructure</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>

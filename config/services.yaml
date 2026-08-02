@@ -1,22 +1,17 @@
-services:
-    _defaults:
-        autowire: true
-        autoconfigure: true
-        bind:
-            Symfony\Component\Messenger\MessageBusInterface $commandBus: '@command.bus'
-            Symfony\Component\Messenger\MessageBusInterface $queryBus: '@query.bus'
-            Symfony\Component\Messenger\MessageBusInterface $eventBus: '@event.bus'
-            Symfony\Component\Messenger\MessageBusInterface $externalMessageBus: '@external_message.bus'
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
 
-    App\:
-        resource: '../src/'
-        exclude:
-            - '../src/Kernel.php'
-
-    App\Controller\:
-        resource: '../src/Controller/'
-        tags: ['controller.service_arguments']
-
-    App\Kal\UI\Http\:
-        resource: '../src/Kal/UI/Http/'
-        tags: ['controller.service_arguments']
+# Aquest fitxer no defineix serveis: només diu quins es carreguen i EN QUIN
+# ORDRE. El manté MicroKernelTrait, que busca `config/services.yaml` per nom;
+# `config/services/` no s'importa sol, a diferència de `config/packages/`.
+#
+# L'ordre no és estètic: `app.yaml` registra tot `src/` amb un glob i el que ve
+# després REDEFINEIX serveis que aquell glob ja havia registrat (per posar-los
+# arguments que l'autowiring no pot deduir). Al revés, el glob se'ls menjaria.
+#
+# Un context nou normalment NO afegeix res aquí: els controllers es registren
+# sols amb `#[AsController]` i la resta la resol l'autowiring. Només cal un
+# fitxer propi si algun servei necessita config explícita — escalars, `%env()%`,
+# tags a mà. Ni `App\Kal\` ni `App\User\` en tenen.
+imports:
+    - { resource: services/app.yaml }
+    - { resource: services/security.yaml }

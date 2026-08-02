@@ -1,3 +1,7 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
+        # DBAL 4 + doctrine-bundle: sense això el factory passa serverVersion ""
+        # i PostgreSQLPlatform peta amb InvalidPlatformVersion. Local i remote
+        # Supabase usen Postgres 15 (veure supabase/config.toml).
+        server_version: '15'

@@ -1,0 +1,5 @@
+# Només a l'entorn de test: la ruta sonda de l'escenari 12 del spec
+# d'autenticació. `config/routes/{env}/` el carrega sol el MicroKernelTrait.
+test_probe:
+    resource: ../../../tests/Security/Support/
+    type: attribute
