@@ -1,8 +1,8 @@
 # Spec: autenticació — verificació del JWT de Supabase i usuària autenticada
 
-> Estat: **complet**. La signatura del JWT està decidida (§11: JWKS, claus
-> asimètriques); queda per confirmar l'algorisme concret de les claus, que
-> afecta la implementació interna del `TokenHandler` però no el disseny.
+> Estat: **implementat** (2026-08-02). La signatura del JWT està decidida i
+> confirmada (§11: JWKS amb claus EC/ES256). Tots els acceptance criteria de §6
+> tenen test; els efectes col·laterals de §10 estan resolts.
 >
 > Relacionat: [`kal-http-response-and-errors.md`](./kal-http-response-and-errors.md) §6,
 > que ja anticipa que l'`organizerId` ha de sortir del token. Aquell spec és
@@ -72,7 +72,7 @@ security:
                 token_handler: App\Shared\Infrastructure\Symfony\Security\SupabaseTokenHandler
 
     access_control:
-        - { path: ^/$, roles: PUBLIC_ACCESS }   # health check
+        - { path: ^/$, roles: PUBLIC_ACCESS, methods: [GET] }   # health check
         - { path: ^/, roles: IS_AUTHENTICATED_FULLY }
 ```
 
@@ -235,24 +235,37 @@ creua la frontera cap a l'aplicació és un `AuthenticatedUser` amb el ULID inte
 
 ## 6. Acceptance criteria
 
-- [ ] `POST /kal` sense token vàlid retorna `401` i **no** crea cap fila.
-- [ ] `POST /kal` amb token vàlid crea el KAL amb `organizer_id` = el ULID de
+- [x] `POST /kal` sense token vàlid retorna `401` i **no** crea cap fila.
+      → `FirewallTest`, "creates nothing at all when the request is unauthenticated".
+- [x] `POST /kal` amb token vàlid crea el KAL amb `organizer_id` = el ULID de
       `profiles.id` corresponent al `sub`, **no** l'uuid de Supabase.
-- [ ] Enviar `organizerId` al body retorna `400 kal_invalid_payload`.
-- [ ] Hi ha un test per **cadascun** dels casos 3 a 11, construint els tokens a
+      → `KalCreateControllerTest`, "hands the payload to the domain…".
+- [x] Enviar `organizerId` al body retorna `400 kal_invalid_payload`.
+      → `KalCreateControllerTest`, dos tests (l'`organizerId` propi i el d'una
+      altra persona); el camp es rebutja sempre, no s'ignora.
+- [x] Hi ha un test per **cadascun** dels casos 3 a 11, construint els tokens a
       propòsit (caducat, mal signat, `iss`/`aud` d'un altre projecte). Els casos
       negatius són el valor d'aquest spec: un handler que se salti `exp` o `aud`
       passa tots els tests feliços.
-- [ ] Existeix un test que afegeix una ruta nova i comprova que respon `401`
+      → `SupabaseTokenHandlerTest` (17 casos, tokens signats ES256 amb un parell
+      de claus de test), `JwksKeyProviderTest` (casos 10 i 11) i `FirewallTest`
+      (els codis per HTTP). Comprovat que mosseguen: afluixant `assertIssuer`,
+      `assertAudience` i `assertExpires` cauen 5 tests; col·lapsant l'expirat en
+      invàlid, 1; passant l'uuid de Supabase al badge en comptes del ULID, 2.
+- [x] Existeix un test que afegeix una ruta nova i comprova que respon `401`
       sense tocar `security.yaml` (escenari 12).
-- [ ] `GET /` segueix responent `200` sense token.
-- [ ] El cos de totes les respostes d'error té la forma `{"error": "<codi>"}`,
+      → `tests/Security/Support/ProbeController.php` + `config/routes/test/probe.yaml`
+      (només entorn test), i dos tests: 401 sense token i 200 amb token — el
+      segon evita que el primer passi per una ruta mal registrada.
+- [x] `GET /` segueix responent `200` sense token.
+- [x] El cos de totes les respostes d'error té la forma `{"error": "<codi>"}`,
       amb els codis de la taula de §3.5 — verificat passant pel kernel HTTP, no
       només per unit test del handler.
-- [ ] `App\User\Domain` no importa res de Symfony ni de Doctrine, i els arch
+      → `FirewallTest` cobreix els cinc codis, inclòs el `503`.
+- [x] `App\User\Domain` no importa res de Symfony ni de Doctrine, i els arch
       tests de `tests/Arch/` ho comproven per `App\User\*` (no només per les
       plantilles buides d'`App\Domain`).
-- [ ] `make qa` passa: PHPStan `level: max` amb els `@throws` de tota la cadena
+- [x] `make qa` passa: PHPStan `level: max` amb els `@throws` de tota la cadena
       del handler, CS Fixer i Pest.
 
 ---
@@ -329,7 +342,26 @@ part i un `security.yaml` de quinze línies.
 ## 10. Efectes col·laterals detectats
 
 Coses que aquest canvi trenca o necessita, i que no són òbvies llegint només
-l'enunciat. Detectades repassant el codi existent:
+l'enunciat. Detectades repassant el codi existent. **Els tres estan resolts**;
+es deixen escrits perquè expliquen decisions que altrament semblen arbitràries.
+
+Un quart que no s'havia previst i va aparèixer implementant: **`tests/User/` no
+era a cap testsuite de `phpunit.xml.dist`**, o sigui que els 24 tests del
+context nou existien i no s'executaven mai. Afegides les suites `domain`
+(`tests/User/Domain`) i `adapters` (`tests/User/Infrastructure`). Passa
+igual que amb les rutes: un fitxer que no s'ha registrat enlloc no falla, només
+no hi és.
+
+**El que `DbalUserRepositoryTest` NO cobreix**, per si algú el llegeix com si
+fos un test d'integració: va contra SQLite en memòria amb l'esquema escrit a mà
+al `ProfilesFixture`, no contra Postgres. Prova el SQL i la hidratació; no
+l'esquema real, ni el `CHECK length(id) = 26` (omès expressament perquè calgui
+poder desar un id corrupte i provar aquell camí d'error), ni les RLS — que en
+aquest camí no hi pinten res igualment, perquè el backend va amb la service_role
+key. Es va decidir deixar-ho així: la query és trivial i sense sintaxi de
+Postgres, i el `DbalKalRepository` (229 línies, transaccions i reconstrucció de
+l'agregat) no té cap cobertura contra BD real, o sigui que un tier d'integració
+de debò ha de començar per allà, no per aquí.
 
 - **Els tests funcionals actuals passaran a fallar.**
   `tests/Kal/Ui/Http/KalCreateControllerTest.php` fa peticions sense cap
@@ -373,17 +405,23 @@ Conseqüències, ja recollides al spec:
 - La URL del JWKS és configuració (`SUPABASE_JWKS_URL`), i per tant entra al
   problema del bootstrap d'entorn als tests descrit a §10.
 
-### El que encara s'ha de confirmar
+### Confirmat (2026-08-02)
 
-**Quin `alg` i `kty` tenen les claus.** Que l'endpoint retorni JSON és condició
-necessària però no suficient: un projecte encara amb el secret heretat també
-serveix aquell path, però amb `"keys": []`. Cal veure que l'array **no** sigui
-buit i amb quin algorisme, perquè determina la llibreria de verificació i el
-codi del handler (ES256 i RS256 no es verifiquen igual).
+L'endpoint del projecte serveix **una clau `kty: EC`, `alg: ES256`**
+(`kid: aa97e34a-06aa-456f-ae6d-ceea790dba1c`), no un array buit: el projecte no
+va amb el secret HS256 heretat i la decisió de dalt es manté.
 
 ```bash
 curl -s "$SUPABASE_JWKS_URL" | jq '.keys[] | {kty, alg, kid}'
 ```
 
-Si això surt buit, la decisió de dalt no és vàlida i cal tornar a §11 abans
-d'escriure el handler.
+Conseqüències al codi:
+
+- Es verifica amb `firebase/php-jwt`, que porta ES256 de sèrie.
+- `JwksKeyProvider::isAsymmetric()` **descarta** les claus `oct`/`HS*` en
+  comptes d'ignorar-les: si el projecte tornés a servir un secret compartit, el
+  backend es quedaria sense claus (503) abans que verificar amb un secret amb el
+  qual qualsevol pot forjar tokens.
+- La clau pública real és al fixture de `JwksKeyProviderTest` — publicar-la és
+  tot el sentit d'un JWKS. Els tokens dels tests, en canvi, es signen amb un
+  parell de claus de test propi (`SupabaseTokenHandlerTest`).

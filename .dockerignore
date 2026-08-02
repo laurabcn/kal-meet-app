@@ -1,0 +1,13 @@
+.git
+.github
+vendor
+var
+.phpunit.cache
+.phpunit.db.cache
+.php-cs-fixer.cache
+node_modules
+.env
+.env.local
+supabase/.temp
+supabase/.branches
+*.md

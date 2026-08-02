@@ -14,3 +14,16 @@ services:
     App\Kal\Domain\KalRepositoryInterface:
         alias: Tests\Kal\Infrastructure\Persistence\InMemoryKalRepository
         public: true
+
+    Tests\Shared\Infrastructure\Symfony\Security\StubTokenHandler: ~
+
+    # security.yaml cita el handler pel nom de la classe; aliasant aquest id, el
+    # firewall segueix sent el de veritat (mateix entry point, mateixos codis
+    # d'error) però sense sortir a buscar el JWKS ni consultar `profiles`.
+    App\Shared\Infrastructure\Symfony\Security\SupabaseTokenHandler:
+        alias: Tests\Shared\Infrastructure\Symfony\Security\StubTokenHandler
+
+    # La ruta sonda de l'escenari 12. Es registra com qualsevol controller —
+    # `#[AsController]` i prou, cap menció a l'autenticació — perquè el que es
+    # prova és que NO calgui fer-hi res perquè neixi protegida.
+    Tests\Security\Support\ProbeController: ~

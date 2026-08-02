@@ -1,0 +1,7 @@
+# Fora de cap bounded context: el health check (`GET /`), l'única ruta pública
+# de tota l'app (config/packages/security.yaml).
+health:
+    resource:
+        path: ../../src/Controller/
+        namespace: App\Controller
+    type: attribute

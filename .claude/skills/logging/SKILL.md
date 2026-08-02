@@ -9,10 +9,9 @@ ALWAYS prepend to your messages "following Logging skill..."
 This project uses PSR-3 (`Psr\Log\LoggerInterface`) — no custom logger
 wrapper. A class gets a logger via constructor injection
 (`private LoggerInterface $logger`), autowired by
-`config/services.yaml`; no monolog bundle is configured yet, so whatever
-implementation the container resolves is whatever a given environment wires
-up (a no-op/null logger until one is added). The failure modes this skill
-guards against: interpolating context into the message string, passing
+`config/services.yaml`. Monolog is wired in `config/packages/monolog.yaml`
+(JSON to stderr, `LOG_LEVEL`; null handler in `test`). The failure modes this
+skill guards against: interpolating context into the message string, passing
 non-primitive values inside the context array, and catching-logging-rethrowing
 the same exception.
 </purpose>
@@ -30,7 +29,9 @@ final readonly class SomeService
 
 Constructor-injected, autowired — never instantiated manually, never a static/
 global call. See `src/Shared/Infrastructure/Symfony/Middleware/MessageStoreMiddleware.php`
-for the pattern already used in this repo.
+for the pattern already used in this repo. Logging goes through
+`symfony/monolog-bundle` (`config/packages/monolog.yaml`): JSON on `php://stderr`,
+level from `LOG_LEVEL`; in `test` the handler is `null`.
 </getting-a-logger>
 
 <message-is-static-context-is-extra>

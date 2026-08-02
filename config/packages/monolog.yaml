@@ -1,0 +1,32 @@
+# Docker / Fly / Railway: tot a stderr amb context JSON (CLAUDE.md — el
+# context s'ha d'imprimir de veritat). Sense fingers_crossed: un warning
+# solitari (JWKS degradat, profile missing) ha de sortir sense esperar un error.
+monolog:
+    channels:
+        - deprecation
+
+when@dev: &stderr_json
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: php://stderr
+                level: '%env(LOG_LEVEL)%'
+                formatter: monolog.formatter.json
+                channels: ['!event']
+            deprecation:
+                type: stream
+                path: php://stderr
+                formatter: monolog.formatter.json
+                channels: [deprecation]
+
+when@prod: *stderr_json
+
+when@test:
+    monolog:
+        handlers:
+            # Cap sortida als tests: sense formatter (NullHandler no en té).
+            main:
+                type: 'null'
+            deprecation:
+                type: 'null'

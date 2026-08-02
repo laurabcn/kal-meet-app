@@ -12,6 +12,8 @@
 
 .phpunit.result.cache
 .phpunit.cache
+# La suite `db` té la seva pròpia config i, per tant, la seva pròpia caché.
+.phpunit.db.cache
 .php-cs-fixer.cache
 /tmp/
 
@@ -19,3 +21,4 @@
 # La resta de supabase/ (config.toml, migrations/) va versionada a propòsit.
 /supabase/.temp/
 /supabase/.branches/
+.claude

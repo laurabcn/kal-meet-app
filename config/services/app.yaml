@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# El registre base de tot `src/`. S'importa PRIMER a services.yaml: els fitxers
+# que vinguin després redefineixen serveis que aquest glob ja ha registrat, i
+# qui va últim guanya.
+#
+# Els controllers no hi surten: porten `#[AsController]` i l'`autoconfigure` de
+# sota ja els posa el tag `controller.service_arguments`.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        # Els busos es lliguen per TIPUS + NOM: un bind només per nom capturava
+        # també els paràmetres tipats amb els ports de Shared/Application.
+        # Viu aquí perquè és aquí on el glob registra els adaptadors de
+        # Shared/Infrastructure/Symfony/Bus/, els únics que volen el bus cru.
+        bind:
+            Symfony\Component\Messenger\MessageBusInterface $commandBus: '@command.bus'
+            Symfony\Component\Messenger\MessageBusInterface $queryBus: '@query.bus'
+            Symfony\Component\Messenger\MessageBusInterface $eventBus: '@event.bus'
+            Symfony\Component\Messenger\MessageBusInterface $externalMessageBus: '@external_message.bus'
+
+    App\:
+        resource: '../../src/'
+        exclude:
+            - '../../src/Kernel.php'

@@ -40,17 +40,28 @@ it('creates a kal with minimum required fields and persists it', function (): vo
         ->and($kal->clues->all())->toBeEmpty();
 });
 
-it('creates exactly one debate room when persisting', function (): void {
+// Aquí hi havia "it creates exactly one debate room when persisting", que
+// comprovava un comptador del doble en memòria incrementat a cada `create()`.
+// L'aula de debat la crea `DbalKalRepository::insertDebateRoom()` en SQL i el
+// handler no hi decideix res, o sigui que aquell test només podia fallar si no
+// es cridava `create()` — cosa que la resta de tests ja cobreix. Eliminat: la
+// invariant "una aula per KAL" necessita un test contra BD de veritat, que
+// encara no existeix.
+
+it('lets a persistence failure surface instead of reporting success', function (): void {
+    // El camí que el doble amagava mentre no sabia fallar: si la BD peta a mig
+    // `create()`, el handler no ho ha de convertir en un final feliç.
+    $this->repository->failWith(KalException::persistenceFailed(new RuntimeException('connection lost')));
+
     $command = new CreateKalCommand(
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
-        name: 'Debate Room KAL',
+        name: 'Doomed KAL',
         startsOn: '2026-08-01 00:00:00',
         locales: ['ca'],
     );
 
-    ($this->handler)($command);
-
-    expect($this->repository->debateRoomsCreated())->toBe(1);
+    expect(fn () => ($this->handler)($command))
+        ->toThrow(KalException::class, 'kal_persistence_failed');
 });
 
 it('creates a kal with all optional fields', function (): void {
@@ -370,6 +381,8 @@ it('does not persist anything when domain validation fails', function (): void {
     } catch (KalException) {
     }
 
-    expect($this->repository->all())->toBeEmpty()
-        ->and($this->repository->debateRoomsCreated())->toBe(0);
+    // Que no s'hi hagi creat cap aula de debat ho garanteix el mateix: el
+    // `DbalKalRepository` les crea dins de `create()`, que aquí no s'arriba a
+    // cridar.
+    expect($this->repository->all())->toBeEmpty();
 });

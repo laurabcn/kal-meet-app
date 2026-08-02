@@ -1,0 +1,5 @@
+# Bounded context Kal. Sense aquest fitxer els atributs #[Route] dels seus
+# controllers no existeixen i l'endpoint dona 404 sense cap error visible.
+kal:
+    resource: ../../src/Kal/UI/Http/
+    type: attribute

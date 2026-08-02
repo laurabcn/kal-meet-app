@@ -1,0 +1,30 @@
+security:
+  # Cap `providers` a propòsit. El firewall és stateless i el
+  # SupabaseTokenHandler resol la usuària ell mateix (UserBadge amb loader):
+  # no hi ha cap taula que Symfony pugui llegir per si sol — `profiles` la
+  # consulta el port `AuthenticatedUserFinderInterface`, no un user provider.
+  # Amb `stateless: true` i zero providers, SecurityExtension::getUserProvider()
+  # retorna null i no n'exigeix cap.
+
+  firewalls:
+    dev:
+      pattern: ^/(_(profiler|wdt)|css|images|js)/
+      security: false
+
+    api:
+      pattern: ^/
+      stateless: true
+      # Sense token: l'autenticador ni s'executa i qui rebutja és l'access_control.
+      entry_point: App\Shared\Infrastructure\Symfony\Security\SupabaseAuthenticationEntryPoint
+      access_token:
+        # L'extractor per defecte és la capçalera `Authorization: Bearer <jwt>`.
+        token_handler: App\Shared\Infrastructure\Symfony\Security\SupabaseTokenHandler
+        # Amb token però dolent: sense això, AccessTokenAuthenticator retorna
+        # ell mateix un 401 amb el cos buit i es perden els codis de §3.5.
+        failure_handler: App\Shared\Infrastructure\Symfony\Security\SupabaseAuthenticationEntryPoint
+
+  access_control:
+    # L'ÚNICA ruta pública: el health check. Tota ruta nova cau a la regla de
+    # sota i neix protegida; obrir-ne una exigeix afegir una línia visible aquí.
+    - { path: '^/$', roles: PUBLIC_ACCESS, methods: [GET] }
+    - { path: ^/, roles: IS_AUTHENTICATED_FULLY }

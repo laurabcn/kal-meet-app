@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          cacheDirectory=".phpunit.cache"
 >
@@ -16,15 +16,31 @@
         <testsuite name="arch">
             <directory>tests/Arch</directory>
         </testsuite>
+        <testsuite name="bootstrap">
+            <directory>tests/Bootstrap</directory>
+        </testsuite>
         <testsuite name="domain">
             <directory>tests/Kal/Domain</directory>
             <directory>tests/Shared</directory>
+            <directory>tests/User/Domain</directory>
         </testsuite>
         <testsuite name="functional">
             <directory>tests/Kal/Application</directory>
         </testsuite>
+        <!--
+            Adaptadors del context User: el de persistència (amb SQLite en
+            memòria fent de doble — prova el SQL i la hidratació, NO l'esquema
+            real ni les RLS) i el d'autenticació. No en diem "integration" a
+            propòsit: avui cap test d'aquest repo toca Postgres, i el `CLAUDE.md`
+            demana que els d'integració vagin contra Supabase local. El dia que
+            existeixi aquell grup, serà una suite a part.
+        -->
+        <testsuite name="adapters">
+            <directory>tests/User/Infrastructure</directory>
+        </testsuite>
         <testsuite name="e2e">
             <directory>tests/Kal/Ui</directory>
+            <directory>tests/Security</directory>
         </testsuite>
     </testsuites>
 
