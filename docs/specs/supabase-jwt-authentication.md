@@ -1,8 +1,8 @@
 # Spec: autenticació — verificació del JWT de Supabase i usuària autenticada
 
-> Estat: **complet, amb una qüestió oberta** (§10: com està signat el JWT). No
-> bloqueja començar — el disseny no canvia segons la resposta, només la
-> implementació interna del `TokenHandler`.
+> Estat: **complet**. La signatura del JWT està decidida (§11: JWKS, claus
+> asimètriques); queda per confirmar l'algorisme concret de les claus, que
+> afecta la implementació interna del `TokenHandler` però no el disseny.
 >
 > Relacionat: [`kal-http-response-and-errors.md`](./kal-http-response-and-errors.md) §6,
 > que ja anticipa que l'`organizerId` ha de sortir del token. Aquell spec és
@@ -356,21 +356,34 @@ l'enunciat. Detectades repassant el codi existent:
 
 ---
 
-## 11. Open questions
+## 11. Decisió sobre la signatura, i el que en queda obert
 
-- **Com està signat el JWT del projecte de Supabase?** Sense resposta, el
-  `TokenHandler` no es pot escriure. Les dues opcions:
-  - *Claus asimètriques + JWKS* (ES256/RS256): el backend baixa
-    `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` i només verifica. Permet
-    rotar sense desplegar; obliga a cachejar el JWKS i a decidir què passa
-    quan no s'hi arriba.
-  - *Secret HS256 compartit*: sense xarxa, però qui té el secret pot **forjar**
-    tokens, no només verificar-los, i rotar-lo obliga a desplegar.
+**Decidit (2026-08-02): es va per JWKS.** El projecte exposa l'endpoint i
+retorna JSON, configurat via `SUPABASE_JWKS_URL`. Queda descartat el secret
+HS256 compartit, que a més era la pitjor opció de les dues: qui té el secret pot
+**forjar** tokens, no només verificar-los.
 
-  **Com comprovar-ho:** al dashboard de Supabase, Settings → API → JWT Settings;
-  o mirar si `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` retorna claus. El
-  `supabase/config.toml` d'aquest repo no té secció `[auth]`, o sigui que en
-  local va amb els valors per defecte del CLI.
+Conseqüències, ja recollides al spec:
 
-  El disseny de §4 i la interfície del `TokenHandler` no canvien segons la
-  resposta; només canvia la implementació de dins i si cal caché.
+- El `TokenHandler` baixa el JWKS i **només verifica**; la clau privada no surt
+  mai de Supabase.
+- Cal la caché amb TTL i el comportament degradat de §3.6 (si la refresca falla,
+  se segueix amb les claus que hi ha; `503 auth_keys_unavailable` només en fred).
+- Rotar claus a Supabase no obliga a desplegar el backend.
+- La URL del JWKS és configuració (`SUPABASE_JWKS_URL`), i per tant entra al
+  problema del bootstrap d'entorn als tests descrit a §10.
+
+### El que encara s'ha de confirmar
+
+**Quin `alg` i `kty` tenen les claus.** Que l'endpoint retorni JSON és condició
+necessària però no suficient: un projecte encara amb el secret heretat també
+serveix aquell path, però amb `"keys": []`. Cal veure que l'array **no** sigui
+buit i amb quin algorisme, perquè determina la llibreria de verificació i el
+codi del handler (ES256 i RS256 no es verifiquen igual).
+
+```bash
+curl -s "$SUPABASE_JWKS_URL" | jq '.keys[] | {kty, alg, kid}'
+```
+
+Si això surt buit, la decisió de dalt no és vàlida i cal tornar a §11 abans
+d'escriure el handler.
