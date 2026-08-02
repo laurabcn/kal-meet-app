@@ -15,6 +15,7 @@ beforeEach(function (): void {
 
 it('creates a kal with minimum required fields and persists it', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Summer Shawl KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -27,7 +28,8 @@ it('creates a kal with minimum required fields and persists it', function (): vo
     expect($kals)->toHaveCount(1);
 
     $kal = $kals[0];
-    expect($kal->organizerId->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1W2')
+    expect($kal->id->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1W3')
+        ->and($kal->organizerId->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1W2')
         ->and($kal->name->value())->toBe('Summer Shawl KAL')
         ->and($kal->startsOn->value())->toBe('2026-08-01 00:00:00')
         ->and($kal->locales->all())->toHaveCount(2)
@@ -54,6 +56,7 @@ it('lets a persistence failure surface instead of reporting success', function (
     $this->repository->failWith(KalException::persistenceFailed(new RuntimeException('connection lost')));
 
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Doomed KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -66,6 +69,7 @@ it('lets a persistence failure surface instead of reporting success', function (
 
 it('creates a kal with all optional fields', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Full KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -85,6 +89,7 @@ it('creates a kal with all optional fields', function (): void {
 
 it('creates a kal with meetings', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Meeting KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -118,6 +123,7 @@ it('creates a kal with meetings', function (): void {
 it('parses meeting scheduled at in the meeting timezone', function (): void {
     // 18:00 in America/New_York = 22:00 UTC (EDT offset = -4h)
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Timezone KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -143,6 +149,7 @@ it('parses meeting scheduled at in the meeting timezone', function (): void {
 it('parses meeting scheduled at with default timezone when omitted', function (): void {
     // 18:00 in Europe/Madrid = 16:00 UTC (CEST offset = +2h)
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Default TZ KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -166,6 +173,7 @@ it('parses meeting scheduled at with default timezone when omitted', function ()
 
 it('deduplicates locales without causing persistence errors', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Duplicate Locales KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -180,6 +188,7 @@ it('deduplicates locales without causing persistence errors', function (): void 
 
 it('creates a kal with files', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'File KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -206,6 +215,7 @@ it('creates a kal with files', function (): void {
 
 it('creates a kal with clues', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Clue KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -250,6 +260,7 @@ it('creates a kal with clues', function (): void {
 
 it('fails when date range is invalid', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Invalid KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -262,6 +273,7 @@ it('fails when date range is invalid', function (): void {
 
 it('fails when no locales are provided', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'No Locale KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -273,6 +285,7 @@ it('fails when no locales are provided', function (): void {
 
 it('fails when organizer id is not a valid ulid', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: 'not-a-valid-ulid',
         name: 'Bad Organizer KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -284,6 +297,7 @@ it('fails when organizer id is not a valid ulid', function (): void {
 
 it('fails when a file locale is not enabled', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Bad File KAL',
         startsOn: '2026-08-01 00:00:00',
@@ -306,6 +320,7 @@ it('fails when a file locale is not enabled', function (): void {
 
 it('fails when a clue payload carries no meeting', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Clue without meeting',
         startsOn: '2026-08-01 00:00:00',
@@ -335,6 +350,7 @@ it('fails when a clue payload carries no meeting', function (): void {
 
 it('fails when a clue payload carries no locale', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Clue without locale',
         startsOn: '2026-08-01 00:00:00',
@@ -369,6 +385,7 @@ it('fails when a clue payload carries no locale', function (): void {
 
 it('does not persist anything when domain validation fails', function (): void {
     $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
         organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
         name: 'Invalid KAL',
         startsOn: '2026-08-01 00:00:00',

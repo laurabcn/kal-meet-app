@@ -200,7 +200,22 @@
                 "exec": [
                   "if (!pm.collectionVariables.get('accessToken') && !pm.environment.get('accessToken')) {",
                   "  console.warn('Set accessToken (collection or environment) to a real Supabase access_token.');",
-                  "}"
+                  "}",
+                  "// Mint a fresh ULID each run so PK collisions do not 500 the smoke path.",
+                  "const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';",
+                  "let t = Date.now();",
+                  "let time = '';",
+                  "for (let i = 0; i < 10; i++) {",
+                  "  time = ENCODING[t % 32] + time;",
+                  "  t = Math.floor(t / 32);",
+                  "}",
+                  "let rand = '';",
+                  "const bytes = new Uint8Array(16);",
+                  "crypto.getRandomValues(bytes);",
+                  "for (let i = 0; i < 16; i++) {",
+                  "  rand += ENCODING[bytes[i] % 32];",
+                  "}",
+                  "pm.collectionVariables.set('kalId', time + rand);"
                 ]
               }
             },
@@ -237,10 +252,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"KAL de tardor\",\n  \"description\": \"Smoke des de Postman\",\n  \"startsOn\": \"2026-09-01 00:00:00\",\n  \"endsOn\": \"2026-10-01 00:00:00\",\n  \"locales\": [\"ca\", \"es\"]\n}"
+              "raw": "{\n  \"id\": \"{{kalId}}\",\n  \"name\": \"KAL de tardor\",\n  \"description\": \"Smoke des de Postman\",\n  \"startsOn\": \"2026-09-01 00:00:00\",\n  \"endsOn\": \"2026-10-01 00:00:00\",\n  \"locales\": [\"ca\", \"es\"]\n}"
             },
             "url": "{{baseUrl}}/kal",
-            "description": "Happy path. Requires `accessToken` whose `sub` maps to `profiles.external_id`. Organizer is taken from the token, not the body."
+            "description": "Happy path. Requires `accessToken` whose `sub` maps to `profiles.external_id`. Client mints `id` (ULID); organizer is taken from the token, not the body."
           },
           "response": []
         },

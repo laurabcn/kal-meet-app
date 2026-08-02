@@ -36,6 +36,7 @@ final class Kal extends AggregateRoot
      * @throws InvalidArgumentException
      */
     public static function create(
+        UlidValue $id,
         UlidValue $organizerId,
         NonEmptyStringValue $name,
         DateTime $startsOn,
@@ -56,7 +57,7 @@ final class Kal extends AggregateRoot
         $now = DateTime::now();
 
         return new self(
-            UlidValue::generate(),
+            $id,
             $organizerId,
             $name,
             $description,

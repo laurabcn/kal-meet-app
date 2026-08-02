@@ -31,6 +31,8 @@ function kalPayload(array $overrides = []): array
 {
     return [
         // Cap `organizerId`: surt del token (spec §3.4) i enviar-lo és un 400.
+        // `id` el mint el client (spec api-response).
+        'id' => '01J5M6XQBR4GTYHN8KZXP0F1W3',
         'name' => 'KAL de tardor',
         'startsOn' => '2026-09-01 00:00:00',
         'endsOn' => '2026-10-01 00:00:00',
@@ -44,10 +46,6 @@ it('creates a kal and answers 201 carrying no data', function (): void {
 
     $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload()));
 
-    // El `{}` és `JsonResponse(null)`, no una decisió de contracte: què retorna
-    // una escriptura (l'id del KAL creat, sobretot) es decideix a la branca de
-    // docs/specs/kal-http-response-and-errors.md. Aquest test fixa el que fa
-    // avui perquè aquell canvi es vegi quan arribi.
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED)
         ->and($client->getResponse()->getContent())->toBe('{}');
 });
@@ -63,6 +61,7 @@ it('hands the payload to the domain through the command bus', function (): void 
     $kals = $repository->all();
     expect($kals)->toHaveCount(1)
         ->and($kals[0]->name->value())->toBe("Xal d'estiu")
+        ->and($kals[0]->id->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1W3')
         ->and($kals[0]->organizerId->value())->toBe(StubTokenHandler::USER_ID)
         ->and($kals[0]->startsOn->value())->toBe('2026-09-01 00:00:00')
         ->and($kals[0]->locales->all())->toHaveCount(2)
@@ -131,6 +130,15 @@ it('persists nothing when the payload is rejected', function (): void {
     $repository = static::getContainer()->get(KalRepositoryInterface::class);
     expect($repository)->toBeInstanceOf(InMemoryKalRepository::class)
         ->and($repository->all())->toBeEmpty();
+});
+
+it('answers 400 when id is not a ulid', function (): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['id' => 'not-a-ulid'])));
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
 });
 
 it('answers 405 for a method other than POST', function (): void {

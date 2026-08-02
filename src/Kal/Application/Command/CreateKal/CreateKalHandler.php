@@ -42,6 +42,7 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
     public function __invoke(CreateKalCommand $command): void
     {
         $kal = Kal::create(
+            UlidValue::create($command->id),
             UlidValue::create($command->organizerId),
             new NonEmptyStringValue($command->name),
             DateTime::create($command->startsOn),
