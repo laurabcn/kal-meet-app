@@ -7,6 +7,8 @@ namespace App\Kal\UI\Http;
 use App\Kal\Application\Command\CreateKal\CreateKalCommand;
 use App\Shared\Application\Command\CommandBusInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
+use App\Shared\Domain\ValueObject\UlidValue;
+use App\Shared\Infrastructure\Symfony\Http\Response\ApiHttpCreatedResponse;
 use App\Shared\Infrastructure\Symfony\Security\SupabaseUser;
 use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -38,7 +40,7 @@ final readonly class KalCreateController
 
         $this->commandBus->dispatch($command);
 
-        return new JsonResponse(null, Response::HTTP_CREATED);
+        return new ApiHttpCreatedResponse();
     }
 
     /**
@@ -52,6 +54,7 @@ final readonly class KalCreateController
         self::rejectTokenDerived($payload, 'organizerId');
 
         return new CreateKalCommand(
+            self::requiredUlid($payload, 'id'),
             $organizerId,
             self::requiredString($payload, 'name'),
             self::requiredString($payload, 'startsOn'),
@@ -63,6 +66,26 @@ final readonly class KalCreateController
             self::optionalString($payload, 'coverPath'),
             self::optionalList($payload, 'meetings'),
         );
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function requiredUlid(array $payload, string $key): string
+    {
+        $value = self::requiredString($payload, $key);
+
+        try {
+            // Canonicalitza (p.ex. minúscules → majúscules) perquè el client i
+            // el que es persisteix coincideixin.
+            return UlidValue::create($value)->value();
+        } catch (InvalidArgumentException) {
+            // UlidValue parla en prosa anglesa; al contracte HTTP només hi
+            // caben codis (spec api-response).
+            throw new InvalidArgumentException('kal_invalid_payload');
+        }
     }
 
     /**

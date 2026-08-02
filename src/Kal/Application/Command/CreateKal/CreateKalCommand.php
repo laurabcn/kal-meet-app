@@ -15,6 +15,7 @@ final readonly class CreateKalCommand implements CommandInterface
      * @param list<mixed> $meetings
      */
     public function __construct(
+        public string $id,
         public string $organizerId,
         public string $name,
         public string $startsOn,

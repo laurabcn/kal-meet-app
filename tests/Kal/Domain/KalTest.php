@@ -18,13 +18,15 @@ use Tests\Kal\Domain\Mother\MeetingsMother;
 use Tests\Shared\Domain\ValueObject\Mother\LocaleMother;
 
 it('creates a kal with only the required fields', function (): void {
+    $id = UlidValue::generate();
     $organizerId = UlidValue::generate();
     $name = new NonEmptyStringValue('Summer Shawl KAL');
     $startsOn = DateTime::create('2026-08-01 00:00:00');
 
-    $kal = KalMother::create(organizerId: $organizerId, name: $name, startsOn: $startsOn);
+    $kal = KalMother::create(id: $id, organizerId: $organizerId, name: $name, startsOn: $startsOn);
 
-    expect($kal->organizerId->equals($organizerId))->toBeTrue()
+    expect($kal->id->equals($id))->toBeTrue()
+        ->and($kal->organizerId->equals($organizerId))->toBeTrue()
         ->and($kal->name->equals($name))->toBeTrue()
         ->and($kal->startsOn->equals($startsOn))->toBeTrue()
         ->and($kal->description)->toBeNull()
@@ -32,7 +34,6 @@ it('creates a kal with only the required fields', function (): void {
         ->and($kal->coverPath)->toBeNull()
         ->and($kal->clues->all())->toBeEmpty()
         ->and($kal->meetings->all())->toBeEmpty()
-        ->and($kal->id->value())->not->toBeEmpty()
         ->and($kal->createdAt)->toBeInstanceOf(DateTime::class)
         ->and($kal->updatedAt)->toBeInstanceOf(DateTime::class);
 });

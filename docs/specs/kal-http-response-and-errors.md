@@ -1,9 +1,13 @@
 # Spec: contracte HTTP d'escriptura — resposta de CreateKal i mapatge d'excepcions
 
-> Status: **PENDENT — branca futura.** Res d'això és a `KAL-002`; s'hi va decidir
-> deixar-ho fora expressament per no barrejar el cablejat HTTP del primer
-> endpoint amb decisions de contracte que afecten tots els endpoints següents.
-> Escrit el 2026-07-29 des de l'estat real de la branca `KAL-002`.
+> Status: **SUPERSEDIT** per [`api-response.md`](api-response.md) (2026-08-02).
+> No implementar des d’aquest fitxer. Es conserva com a històric de les
+> opcions discutides a KAL-002 (retorn d’id, listener, `InvalidArgumentException`).
+>
+> Estat original: **PENDENT — branca futura.** Res d'això és a `KAL-002`; s'hi va
+> decidir deixar-ho fora expressament per no barrejar el cablejat HTTP del
+> primer endpoint amb decisions de contracte que afecten tots els endpoints
+> següents. Escrit el 2026-07-29 des de l'estat real de la branca `KAL-002`.
 
 ---
 
