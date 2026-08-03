@@ -30,6 +30,10 @@ bash: ## Open an interactive shell in the app container
 up: ## Start PHP-FPM + nginx (http://localhost:8080)
 	@$(DOCKER_COMPOSE) up -d --build app nginx
 serve: up ## Alias of `up`
+logs: ## Tail app logs (Monolog JSON on stderr). Errors only: make logs-errors
+	@$(DOCKER_COMPOSE) logs -f app
+logs-errors: ## Tail WARNING/ERROR/CRITICAL lines from the app container
+	@$(DOCKER_COMPOSE) logs -f app 2>&1 | grep --line-buffered -E '"level_name":"(WARNING|ERROR|CRITICAL)"'
 
 ##@ 🧪 Test
 test: run-pest ## Run the Pest test suite

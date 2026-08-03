@@ -57,4 +57,9 @@ final class KalException extends DomainException
     {
         return new self('kal_persistence_failed', 0, $cause);
     }
+
+    public static function alreadyExists(): self
+    {
+        return new self('kal_already_exists');
+    }
 }

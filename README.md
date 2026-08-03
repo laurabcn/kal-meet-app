@@ -45,6 +45,10 @@ supabase start         # local Postgres + auth + storage (Supabase CLI container
 supabase db push       # apply supabase/migrations/
 make up                # PHP-FPM + nginx → http://localhost:8080
 make qa                # PHPStan + CS Fixer (dry-run) + Pest
+make logs              # Tail Monolog JSON (app container stderr)
+make logs-errors       # Only WARNING / ERROR / CRITICAL
+# Optional Slack alerts for 5xx: set SLACK_DSN in .env.local
+#   slack://xoxb-...@default?channel=alertas  (bot invited to #alertas)
 ```
 
 `make help` lists every target, grouped by category. The ones you will use most:

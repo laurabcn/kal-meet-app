@@ -141,6 +141,37 @@ it('answers 400 when id is not a ulid', function (): void {
         ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
 });
 
+it('answers 400 when a domain invariant is violated', function (): void {
+    $client = static::createClient();
+
+    $client->request(
+        'POST',
+        '/kal',
+        server: authHeaders(),
+        content: (string) json_encode(kalPayload([
+            'startsOn' => '2026-10-01 00:00:00',
+            'endsOn' => '2026-09-01 00:00:00',
+        ])),
+    );
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_date_range"}');
+});
+
+it('answers 409 when the kal id already exists', function (): void {
+    $client = static::createClient();
+    $client->disableReboot();
+    $payload = (string) json_encode(kalPayload());
+
+    $client->request('POST', '/kal', server: authHeaders(), content: $payload);
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED);
+
+    $client->request('POST', '/kal', server: authHeaders(), content: $payload);
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CONFLICT)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_already_exists"}');
+});
+
 it('answers 405 for a method other than POST', function (): void {
     $client = static::createClient();
 
