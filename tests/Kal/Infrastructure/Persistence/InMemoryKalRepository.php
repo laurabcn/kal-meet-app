@@ -44,7 +44,12 @@ final class InMemoryKalRepository implements KalRepositoryInterface
             throw $this->failure;
         }
 
-        $this->kals[$kal->id->value()] = $kal;
+        $id = $kal->id->value();
+        if (isset($this->kals[$id])) {
+            throw KalException::alreadyExists();
+        }
+
+        $this->kals[$id] = $kal;
     }
 
     /** @return Kal[] */

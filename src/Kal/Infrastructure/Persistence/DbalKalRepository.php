@@ -12,6 +12,7 @@ use App\Kal\Domain\KalRepositoryInterface;
 use App\Kal\Domain\Meeting;
 use App\Shared\Domain\ValueObject\UlidValue;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Psr\Log\LoggerInterface;
 
 final readonly class DbalKalRepository implements KalRepositoryInterface
@@ -38,6 +39,10 @@ final readonly class DbalKalRepository implements KalRepositoryInterface
             $this->insertDebateRoom($kal);
 
             $this->connection->commit();
+        } catch (UniqueConstraintViolationException $e) {
+            $this->safeRollBack();
+
+            throw KalException::alreadyExists();
         } catch (\Throwable $e) {
             $this->safeRollBack();
 

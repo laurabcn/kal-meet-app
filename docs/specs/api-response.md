@@ -176,16 +176,19 @@ Sense un contracte compartit d’èxit:
 
 ## Out of scope / Deferred
 
-### Deferred — mapatge d’excepcions (següent tasca)
+### Deferred — mapatge d’excepcions
+
+> **Spec dedicada:** [`http-exception-mapping.md`](http-exception-mapping.md)
+> (listener + logger + Slack `#alertas` per 5xx). Aquest bloc queda com a
+> històric del que es va aparcar a KAL-005.
 
 - Listener `kernel.exception` a Shared Infrastructure.
 - `DomainException` (i filles amb missatge = codi) → 400 + `{"error":"<codi>"}`.
-- `*_persistence_failed` → 500 (codi de persistència o `internal_error` —
-  decidir a la tasca Deferred).
-- `InvalidArgumentException` de Shared amb prosa → `invalid_argument` genèric
-  (P1: normalitzar tots els missatges a codis).
-- Opcional: `ApiHttpErrorResponse` compartit amb auth.
+- `*_persistence_failed` → 500 (codi de persistència al body).
+- `InvalidArgumentException` de Shared amb prosa → `invalid_argument` genèric.
+- `ApiHttpErrorResponse` alineat amb auth.
 - `409` + `kal_already_exists` per PK duplicada.
+- Slack Incoming Webhook → **Notifier + `SLACK_DSN`** (bot).
 
 ### Fora d’aquesta línia
 
@@ -218,13 +221,11 @@ Sense un contracte compartit d’èxit:
 
 - P1: cal estendre `ResponseInterface` amb `metadata(): array` abans del primer
   GET, o només quan hi hagi un cas real (paginació, etc.)?
-- P1: al Deferred, `kal_persistence_failed` al body del 500 o només
-  `internal_error` + detall al log?
-- P1: el `try/catch` de payload a `KalCreateController` es queda o es mou al
-  listener quan existeixi?
+- Les preguntes del Deferred (persistència / InvalidArgument / try-catch create)
+  queden tancades a [`http-exception-mapping.md`](http-exception-mapping.md).
 
 ## Hand-off
 
-Spec a [`docs/specs/api-response.md`](api-response.md). Següent pas:
-`start-task` sobre la branca `feat/KAL-005-response` per implementar els
-helpers + `id` al create. Després: tasca Deferred (listener) → GET → e2e.
+Spec ApiResponse implementada a `main` (PR #5). Següent:
+[`http-exception-mapping.md`](http-exception-mapping.md) → `start-task` a
+`feat/KAL-005-exceptions` → GET → e2e.

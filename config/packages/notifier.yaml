@@ -1,0 +1,6 @@
+framework:
+    notifier:
+        chatter_transports:
+            # Default `null://null` disables Slack without breaking boot.
+            # Real: slack://xoxb-...@default?channel=alertas  (channel without #)
+            slack: '%env(SLACK_DSN)%'
