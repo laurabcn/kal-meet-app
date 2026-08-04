@@ -57,7 +57,7 @@ it('fails with a code when the query cannot run', function (): void {
     $repository = new DbalUserRepository(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]));
 
     expect(fn () => $repository->findByExternalId(ExternalIdMother::random()))
-        ->toThrow(UserException::class, 'user_persistence_failed');
+        ->toThrow(UserException::class, 'Failed to load the user profile.');
 });
 
 it('fails with a code when the stored profile id is not a ULID', function (): void {
@@ -66,5 +66,5 @@ it('fails with a code when the stored profile id is not a ULID', function (): vo
     $repository = new DbalUserRepository($connection);
 
     expect(fn () => $repository->findByExternalId(ExternalIdMother::fromString('sub-1')))
-        ->toThrow(UserException::class, 'user_invalid_stored_profile_id');
+        ->toThrow(UserException::class, 'The stored profile id is invalid.');
 });

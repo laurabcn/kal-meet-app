@@ -178,7 +178,7 @@ it('rejects an expired token as expired, not as invalid', function (): void {
     // La distinció és el contracte amb el frontend: "refresca el token" no és
     // el mateix que "torna a entrar".
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($token))
-        ->toThrow(ExpiredTokenException::class, 'auth_token_expired');
+        ->toThrow(ExpiredTokenException::class, 'Authentication token has expired.');
 });
 
 it('rejects a token with no exp claim at all', function (): void {
@@ -188,7 +188,7 @@ it('rejects a token with no exp claim at all', function (): void {
     unset($claims['exp']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom(signToken($claims)))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 // --- Cas 5: la signatura ----------------------------------------------------
@@ -198,21 +198,21 @@ it('rejects a token whose payload was tampered with after signing', function ():
     $forged = rtrim(strtr(base64_encode((string) json_encode([...validClaims(), 'sub' => 'someone-else'])), '+/', '-_'), '=');
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($header.'.'.$forged.'.'.$signature))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token signed with a key that is not in the JWKS', function (): void {
     $token = signToken(validClaims(), foreignPrivateKey());
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($token))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token whose kid is unknown', function (): void {
     $token = signToken(validClaims(), kid: 'some-other-key');
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($token))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('refuses an HS256 token forged with the public key as the secret', function (): void {
@@ -224,12 +224,12 @@ it('refuses an HS256 token forged with the public key as the secret', function (
     $signature = rtrim(strtr(base64_encode(hash_hmac('sha256', $header.'.'.$payload, (string) json_encode(testJwks()['keys'][0]), true)), '+/', '-_'), '=');
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($header.'.'.$payload.'.'.$signature))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects something that is not a JWT at all', function (): void {
     expect(fn () => handlerWithProfile()->getUserBadgeFrom('not-a-jwt'))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 // --- Cas 7: token d'un altre projecte, ben signat pel seu emissor -----------
@@ -238,7 +238,7 @@ it('rejects a token issued by another supabase project', function (): void {
     $token = signToken([...validClaims(), 'iss' => 'https://another-project.supabase.co/auth/v1']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($token))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token with no iss claim', function (): void {
@@ -246,14 +246,14 @@ it('rejects a token with no iss claim', function (): void {
     unset($claims['iss']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom(signToken($claims)))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token meant for another audience', function (): void {
     $token = signToken([...validClaims(), 'aud' => 'service-role']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom($token))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token with no aud claim', function (): void {
@@ -261,14 +261,14 @@ it('rejects a token with no aud claim', function (): void {
     unset($claims['aud']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom(signToken($claims)))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 // --- El subject -------------------------------------------------------------
 
 it('rejects a token with an empty sub', function (): void {
     expect(fn () => handlerWithProfile()->getUserBadgeFrom(signToken([...validClaims(), 'sub' => ''])))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 it('rejects a token with no sub claim', function (): void {
@@ -276,7 +276,7 @@ it('rejects a token with no sub claim', function (): void {
     unset($claims['sub']);
 
     expect(fn () => handlerWithProfile()->getUserBadgeFrom(signToken($claims)))
-        ->toThrow(InvalidTokenException::class, 'auth_token_invalid');
+        ->toThrow(InvalidTokenException::class, 'Authentication token is invalid.');
 });
 
 // --- Cas 8: token bo, perfil que no hi és ----------------------------------
@@ -285,7 +285,7 @@ it('rejects a valid token whose sub has no profile row', function (): void {
     // Ni el trigger handle_new_user() ha fet la seva feina, ni el perfil hi és
     // per RGPD: es distingeix del token invàlid perquè no és culpa del client.
     expect(fn () => handlerFor(null)->getUserBadgeFrom(signToken(validClaims())))
-        ->toThrow(ProfileNotFoundException::class, 'auth_profile_not_found');
+        ->toThrow(ProfileNotFoundException::class, 'User profile was not found.');
 });
 
 // --- Cas 11: sense claus de verificació ------------------------------------

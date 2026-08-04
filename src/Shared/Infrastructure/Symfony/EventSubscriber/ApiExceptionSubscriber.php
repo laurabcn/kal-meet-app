@@ -43,7 +43,11 @@ final readonly class ApiExceptionSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $event->setResponse(new ApiHttpErrorResponse($mapped->errorCode, $mapped->statusCode));
+        $event->setResponse(new ApiHttpErrorResponse(
+            $mapped->message,
+            $mapped->errorCode,
+            $mapped->statusCode,
+        ));
 
         if ($mapped->statusCode < 500) {
             return;
@@ -52,7 +56,8 @@ final readonly class ApiExceptionSubscriber implements EventSubscriberInterface
         $request = $event->getRequest();
         $context = [
             'exception' => $exception,
-            'error' => $mapped->errorCode,
+            'error' => $mapped->message,
+            'code' => $mapped->errorCode,
             'http_status' => $mapped->statusCode,
             'route' => $request->attributes->get('_route'),
             'method' => $request->getMethod(),

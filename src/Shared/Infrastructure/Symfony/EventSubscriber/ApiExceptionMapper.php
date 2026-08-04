@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Shared\Infrastructure\Symfony\EventSubscriber;
 
+use App\Shared\Domain\Exception\ConflictException;
 use App\Shared\Domain\Exception\DomainException;
+use App\Shared\Domain\Exception\ForbiddenException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
+use App\Shared\Domain\Exception\NotFoundException;
+use App\Shared\Domain\Exception\UnauthorizedException;
 use App\Shared\Infrastructure\Symfony\Security\Exception\AuthenticationFailedException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -13,10 +17,10 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
 /**
- * Excepció → status HTTP + codi d'error estable per al body `{"error":…}`.
+ * Excepció → status HTTP + cos `{"error":"<missatge>","code":"<codi>"}`.
  *
- * No mapeja auth/access (entry point / firewall) ni HttpException de Symfony
- * (405, 404 de ruta…).
+ * El status ve del tipus (`instanceof`), mai del text del missatge.
+ * Auth/access i HttpException de Symfony retornen `null` (entry point / firewall).
  */
 final class ApiExceptionMapper
 {
@@ -38,24 +42,53 @@ final class ApiExceptionMapper
         }
 
         if ($exception instanceof InvalidArgumentException) {
-            return new MappedHttpError(Response::HTTP_BAD_REQUEST, 'invalid_argument');
+            return new MappedHttpError(
+                Response::HTTP_BAD_REQUEST,
+                $exception->errorCode(),
+                $exception->getMessage(),
+            );
         }
 
-        return new MappedHttpError(Response::HTTP_INTERNAL_SERVER_ERROR, 'internal_error');
+        if ($exception instanceof UnauthorizedException) {
+            return new MappedHttpError(
+                Response::HTTP_UNAUTHORIZED,
+                'unauthorized',
+                '' !== $exception->getMessage() ? $exception->getMessage() : 'Unauthorized.',
+            );
+        }
+
+        if ($exception instanceof ForbiddenException) {
+            return new MappedHttpError(
+                Response::HTTP_FORBIDDEN,
+                'forbidden',
+                '' !== $exception->getMessage() ? $exception->getMessage() : ForbiddenException::ACCESS_DENIED,
+            );
+        }
+
+        return new MappedHttpError(
+            Response::HTTP_INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'An internal error occurred.',
+        );
     }
 
     private function mapDomainException(DomainException $exception): MappedHttpError
     {
-        $code = $exception->getMessage();
+        $code = $exception->errorCode();
+        $message = $exception->getMessage();
+
+        if ($exception instanceof NotFoundException) {
+            return new MappedHttpError(Response::HTTP_NOT_FOUND, $code, $message);
+        }
+
+        if ($exception instanceof ConflictException) {
+            return new MappedHttpError(Response::HTTP_CONFLICT, $code, $message);
+        }
 
         if (str_ends_with($code, '_persistence_failed')) {
-            return new MappedHttpError(Response::HTTP_INTERNAL_SERVER_ERROR, $code);
+            return new MappedHttpError(Response::HTTP_INTERNAL_SERVER_ERROR, $code, $message);
         }
 
-        if ('kal_already_exists' === $code) {
-            return new MappedHttpError(Response::HTTP_CONFLICT, $code);
-        }
-
-        return new MappedHttpError(Response::HTTP_BAD_REQUEST, $code);
+        return new MappedHttpError(Response::HTTP_BAD_REQUEST, $code, $message);
     }
 }

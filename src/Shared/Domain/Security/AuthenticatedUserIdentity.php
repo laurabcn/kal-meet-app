@@ -28,7 +28,10 @@ final readonly class AuthenticatedUserIdentity
     public static function create(string $id, string $externalId): self
     {
         if ('' === $id || '' === $externalId || !Ulid::isValid($id)) {
-            throw new InvalidArgumentException('auth_identity_incomplete');
+            throw new InvalidArgumentException(
+                'auth_identity_incomplete',
+                'The authenticated identity is incomplete.',
+            );
         }
 
         return new self($id, $externalId);

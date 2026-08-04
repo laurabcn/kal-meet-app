@@ -20,11 +20,11 @@ it('creates a valid https url via base Url', function (): void {
 
 it('throws when the url is invalid', function (): void {
     Url::fromString('not-a-url');
-})->throws(InvalidArgumentException::class, 'invalid_url');
+})->throws(InvalidArgumentException::class, 'The value is not a valid URL.');
 
 it('throws when the url is empty', function (): void {
     Url::fromString('');
-})->throws(InvalidArgumentException::class, 'invalid_url');
+})->throws(InvalidArgumentException::class, 'The value is not a valid URL.');
 
 it('compares urls by value', function (): void {
     $a = Url::fromString('https://example.com');
@@ -45,7 +45,7 @@ it('creates an https url', function (): void {
 
 it('rejects http for HttpsUrl', function (): void {
     HttpsUrl::fromString('http://zoom.us/j/1');
-})->throws(InvalidArgumentException::class, 'url_must_be_https');
+})->throws(InvalidArgumentException::class, 'The URL must use HTTPS.');
 
 it('accepts HTTPS scheme case-insensitively for HttpsUrl', function (): void {
     $url = HttpsUrl::fromString('HTTPS://zoom.us/j/1');

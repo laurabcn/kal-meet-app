@@ -17,6 +17,11 @@ final class VerificationKeysUnavailableException extends AuthenticationFailedExc
         return 'auth_keys_unavailable';
     }
 
+    public function errorMessage(): string
+    {
+        return 'Authentication keys are temporarily unavailable.';
+    }
+
     public function statusCode(): int
     {
         return Response::HTTP_SERVICE_UNAVAILABLE;

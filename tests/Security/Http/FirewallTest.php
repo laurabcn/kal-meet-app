@@ -21,7 +21,7 @@ it('answers auth_token_missing without an Authorization header', function (): vo
     $client->request('POST', '/kal', server: ['CONTENT_TYPE' => 'application/json'], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_token_missing"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication token is missing.","code":"auth_token_missing"}');
 });
 
 it('answers auth_token_missing when the scheme is not Bearer', function (): void {
@@ -33,7 +33,7 @@ it('answers auth_token_missing when the scheme is not Bearer', function (): void
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_token_missing"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication token is missing.","code":"auth_token_missing"}');
 });
 
 it('rejects before validating the payload', function (): void {
@@ -42,7 +42,7 @@ it('rejects before validating the payload', function (): void {
     // El cos és invàlid i el token hi falta: ha de guanyar l'auth (spec §5, cas 3).
     $client->request('POST', '/kal', server: ['CONTENT_TYPE' => 'application/json'], content: 'not json');
 
-    expect($client->getResponse()->getContent())->toBe('{"error":"auth_token_missing"}');
+    expect($client->getResponse()->getContent())->toBe('{"error":"Authentication token is missing.","code":"auth_token_missing"}');
 });
 
 it('creates nothing at all when the request is unauthenticated', function (): void {
@@ -72,7 +72,7 @@ it('answers auth_token_invalid when the handler rejects the token', function ():
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_token_invalid"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication token is invalid.","code":"auth_token_invalid"}');
 });
 
 it('lets an authenticated request through to the controller', function (): void {
@@ -86,7 +86,7 @@ it('lets an authenticated request through to the controller', function (): void 
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
 it('answers auth_token_expired, distinguishable from an invalid token', function (): void {
@@ -98,7 +98,7 @@ it('answers auth_token_expired, distinguishable from an invalid token', function
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_token_expired"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication token has expired.","code":"auth_token_expired"}');
 });
 
 it('answers auth_profile_not_found when the token is good but the profile is gone', function (): void {
@@ -110,7 +110,7 @@ it('answers auth_profile_not_found when the token is good but the profile is gon
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_profile_not_found"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"User profile was not found.","code":"auth_profile_not_found"}');
 });
 
 it('answers 503 auth_keys_unavailable when there are no verification keys', function (): void {
@@ -124,7 +124,7 @@ it('answers 503 auth_keys_unavailable when there are no verification keys', func
     ], content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_SERVICE_UNAVAILABLE)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_keys_unavailable"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication keys are temporarily unavailable.","code":"auth_keys_unavailable"}');
 });
 
 it('keeps the health check public', function (): void {
@@ -145,7 +145,7 @@ it('protects a route added afterwards without touching security.yaml', function 
     $client->request('GET', '/test-probe');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"auth_token_missing"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Authentication token is missing.","code":"auth_token_missing"}');
 });
 
 it('lets that same new route through once authenticated', function (): void {

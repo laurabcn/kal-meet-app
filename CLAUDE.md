@@ -260,7 +260,7 @@ IA (Fase IA), recomanador.
     - `Application/` — Commands (canvien estat) i Queries (només lligen) com a
       missatges + handlers, despatxats pels **busos de Symfony Messenger**
       (command.bus / query.bus / event.bus, transport sync a l'MVP)
-    - `Infrastructure/` — adaptadors: `DbalKalRepository` (SQL directe amb
+    - `Infrastructure/` — adaptadors: `KalRepository` (SQL directe amb
       Doctrine DBAL, reconstrucció manual de l'agregat, transaccions explícites)
     - `UI/` — controllers de Symfony: tradueixen HTTP ↔ Commands/Queries via el
       bus, mai toquen SQL ni instancien handlers. **Tot controller porta
@@ -355,8 +355,10 @@ qualsevol canvi de persistència.
 
 ### Convencions no negociables sense motiu
 - Conventional Commits (`feat:`, `fix:`, `refactor:`...)
-- Errors com a codis (`kal_not_found`), mai frases per humans — la traducció
-  viu al frontend
+- Errors API: cos `{"error":"<missatge llegible>","code":"<codi estable>"}`
+  (p.ex. `"Kal not found."` + `kal_not_found`). El status HTTP es decideix per
+  tipus d'excepció (`instanceof`), no pel text. El FE pot mostrar `error` o
+  traduir amb `code`
 - Injecció de dependències via el container de Symfony (autowiring); un
   controller mai instancia un handler a mà — tot passa pel bus
 - Els PRs/canvis els revisa la desenvolupadora amb criteri propi: canvis

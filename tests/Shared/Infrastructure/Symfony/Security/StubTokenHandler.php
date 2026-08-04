@@ -47,10 +47,10 @@ final readonly class StubTokenHandler implements AccessTokenHandlerInterface
     {
         match ($accessToken) {
             self::TOKEN => null,
-            self::EXPIRED_TOKEN => throw new ExpiredTokenException('auth_token_expired'),
-            self::NO_PROFILE_TOKEN => throw new ProfileNotFoundException('auth_profile_not_found'),
+            self::EXPIRED_TOKEN => throw new ExpiredTokenException(),
+            self::NO_PROFILE_TOKEN => throw new ProfileNotFoundException(),
             self::KEYS_DOWN_TOKEN => throw new VerificationKeysUnavailableException(),
-            default => throw new InvalidTokenException('auth_token_invalid'),
+            default => throw new InvalidTokenException(),
         };
 
         $identity = new AuthenticatedUserIdentity(self::USER_ID, self::EXTERNAL_ID);
