@@ -54,4 +54,4 @@ it('deduplicates case-variant locales', function (): void {
 
 it('throws when created with no locales at all', function (): void {
     Locales::create([]);
-})->throws(KalException::class, 'kal_no_locales_enabled');
+})->throws(KalException::class, 'At least one locale must be enabled for the kal.');

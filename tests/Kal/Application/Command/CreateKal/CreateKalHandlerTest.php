@@ -64,7 +64,7 @@ it('lets a persistence failure surface instead of reporting success', function (
     );
 
     expect(fn () => ($this->handler)($command))
-        ->toThrow(KalException::class, 'kal_persistence_failed');
+        ->toThrow(KalException::class, 'Failed to persist the kal.');
 });
 
 it('creates a kal with all optional fields', function (): void {
@@ -269,7 +269,7 @@ it('fails when date range is invalid', function (): void {
     );
 
     ($this->handler)($command);
-})->throws(KalException::class, 'kal_invalid_date_range');
+})->throws(KalException::class, 'The kal end date must be after the start date.');
 
 it('fails when no locales are provided', function (): void {
     $command = new CreateKalCommand(
@@ -281,7 +281,7 @@ it('fails when no locales are provided', function (): void {
     );
 
     ($this->handler)($command);
-})->throws(KalException::class, 'kal_no_locales_enabled');
+})->throws(KalException::class, 'At least one locale must be enabled for the kal.');
 
 it('fails when organizer id is not a valid ulid', function (): void {
     $command = new CreateKalCommand(
@@ -316,7 +316,7 @@ it('fails when a file locale is not enabled', function (): void {
     );
 
     ($this->handler)($command);
-})->throws(KalException::class, 'kal_file_locale_not_enabled');
+})->throws(KalException::class, 'A file locale is not enabled for this kal.');
 
 it('fails when a clue payload carries no meeting', function (): void {
     $command = new CreateKalCommand(
@@ -346,7 +346,7 @@ it('fails when a clue payload carries no meeting', function (): void {
     );
 
     ($this->handler)($command);
-})->throws(InvalidArgumentException::class, 'kal_invalid_payload');
+})->throws(InvalidArgumentException::class, 'The request payload is invalid.');
 
 it('fails when a clue payload carries no locale', function (): void {
     $command = new CreateKalCommand(
@@ -381,7 +381,7 @@ it('fails when a clue payload carries no locale', function (): void {
     );
 
     ($this->handler)($command);
-})->throws(InvalidArgumentException::class, 'kal_invalid_payload');
+})->throws(InvalidArgumentException::class, 'The request payload is invalid.');
 
 it('does not persist anything when domain validation fails', function (): void {
     $command = new CreateKalCommand(

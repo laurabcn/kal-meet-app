@@ -20,8 +20,8 @@ final class FileMother
         $name ??= 'pattern.pdf';
 
         return new File(
-            new NonEmptyStringValue($name),
-            new NonEmptyStringValue(sprintf('kals/kal-id/round-1/%s', $name)),
+            NonEmptyStringValue::create($name),
+            NonEmptyStringValue::create(sprintf('kals/kal-id/round-1/%s', $name)),
             FileSize::create(1000),
             FileExtension::PDF,
             $locale ?? LocaleMother::catalan(),

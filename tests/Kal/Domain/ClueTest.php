@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\File;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
+use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Kal\Domain\Mother\ClueMother;
 use Tests\Kal\Domain\Mother\FileMother;
 use Tests\Kal\Domain\Mother\MeetingMother;
@@ -36,13 +38,13 @@ it('creates a clue carrying the file it was given', function (): void {
 it('creates a clue with the name it was given', function (): void {
     $clue = ClueMother::create(name: 'Round 1');
 
-    expect($clue->name->equals(new NonEmptyStringValue('Round 1')))->toBeTrue();
+    expect($clue->name->equals(NonEmptyStringValue::create('Round 1')))->toBeTrue();
 });
 
 it('creates a clue carrying the meeting it was given', function (): void {
     $meeting = MeetingMother::create(
         scheduledAt: DateTime::create('2026-08-03 18:00:00'),
-        title: new NonEmptyStringValue('Round 1 live session'),
+        title: NonEmptyStringValue::create('Round 1 live session'),
     );
 
     $clue = ClueMother::create(meeting: $meeting);
@@ -69,7 +71,7 @@ it('throws when the meeting is scheduled before the clue starts', function (): v
         endsOn: DateTime::create('2026-08-08 00:00:00'),
         meeting: MeetingMother::create(scheduledAt: DateTime::create('2026-07-30 18:00:00')),
     );
-})->throws(KalException::class, 'kal_meeting_outside_clue_range');
+})->throws(KalException::class, 'A meeting is scheduled outside its clue date range.');
 
 it('throws when the meeting is scheduled after the clue ends', function (): void {
     ClueMother::create(
@@ -77,7 +79,7 @@ it('throws when the meeting is scheduled after the clue ends', function (): void
         endsOn: DateTime::create('2026-08-08 00:00:00'),
         meeting: MeetingMother::create(scheduledAt: DateTime::create('2026-08-09 18:00:00')),
     );
-})->throws(KalException::class, 'kal_meeting_outside_clue_range');
+})->throws(KalException::class, 'A meeting is scheduled outside its clue date range.');
 
 it('accepts a meeting scheduled exactly when the clue ends', function (): void {
     $endsOn = DateTime::create('2026-08-08 00:00:00');
@@ -96,10 +98,46 @@ it('throws when ends on is before starts on', function (): void {
         startsOn: DateTime::create('2026-08-01 00:00:00'),
         endsOn: DateTime::create('2026-07-31 00:00:00'),
     );
-})->throws(KalException::class, 'kal_invalid_date_range');
+})->throws(KalException::class, 'The kal end date must be after the start date.');
 
 it('throws when ends on equals starts on', function (): void {
     $startsOn = DateTime::create('2026-08-01 00:00:00');
 
     ClueMother::create(startsOn: $startsOn, endsOn: $startsOn);
-})->throws(KalException::class, 'kal_invalid_date_range');
+})->throws(KalException::class, 'The kal end date must be after the start date.');
+
+it('reconstitutes a clue preserving its persisted id and updatedAt', function (): void {
+    $id = UlidValue::generate();
+    $startsOn = DateTime::create('2026-08-01 00:00:00');
+    $endsOn = DateTime::create('2026-08-08 00:00:00');
+    $updatedAt = DateTime::create('2026-08-02 00:00:00');
+    $file = FileMother::create();
+    $meeting = MeetingMother::create(scheduledAt: $startsOn);
+    $name = NonEmptyStringValue::create('Round 1');
+
+    $clue = Clue::reconstitute($id, $name, null, $file, $meeting, $file->locale, $startsOn, $endsOn, $updatedAt);
+
+    expect($clue->id->equals($id))->toBeTrue()
+        ->and($clue->updatedAt->equals($updatedAt))->toBeTrue()
+        ->and($clue->name->equals($name))->toBeTrue()
+        ->and($clue->startsOn->equals($startsOn))->toBeTrue()
+        ->and($clue->endsOn->equals($endsOn))->toBeTrue();
+});
+
+it('rejects reconstituting a clue whose meeting falls outside its range', function (): void {
+    $startsOn = DateTime::create('2026-08-01 00:00:00');
+    $endsOn = DateTime::create('2026-08-08 00:00:00');
+    $file = FileMother::create();
+
+    Clue::reconstitute(
+        UlidValue::generate(),
+        NonEmptyStringValue::create('Round 1'),
+        null,
+        $file,
+        MeetingMother::create(scheduledAt: DateTime::create('2026-09-01 00:00:00')),
+        $file->locale,
+        $startsOn,
+        $endsOn,
+        $startsOn,
+    );
+})->throws(KalException::class, 'A meeting is scheduled outside its clue date range.');

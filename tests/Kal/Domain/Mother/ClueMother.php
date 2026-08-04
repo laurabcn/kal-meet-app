@@ -27,7 +27,7 @@ final class ClueMother
         $endsOn ??= DateTime::create('2026-08-08 00:00:00');
 
         return Clue::create(
-            new NonEmptyStringValue($name ?? 'Round 1'),
+            NonEmptyStringValue::create($name ?? 'Round 1'),
             $startsOn,
             $endsOn,
             $file,

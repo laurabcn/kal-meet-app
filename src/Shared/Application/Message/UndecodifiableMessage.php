@@ -55,7 +55,7 @@ final readonly class UndecodifiableMessage implements EventMessageInterface
      */
     public static function name(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('undecodifiable_message');
+        return NonEmptyStringValue::create('undecodifiable_message');
     }
 
     /**
@@ -63,7 +63,7 @@ final readonly class UndecodifiableMessage implements EventMessageInterface
      */
     public static function version(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('1.0.0');
+        return NonEmptyStringValue::create('1.0.0');
     }
 
     /**
@@ -71,7 +71,7 @@ final readonly class UndecodifiableMessage implements EventMessageInterface
      */
     public static function boundedContext(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('internal');
+        return NonEmptyStringValue::create('internal');
     }
 
     /**

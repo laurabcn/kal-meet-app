@@ -35,7 +35,7 @@ final readonly class AuthenticatedUserFinder implements AuthenticatedUserFinderI
     public function findByExternalId(string $externalId): ?AuthenticatedUserIdentity
     {
         try {
-            $user = $this->users->findByExternalId(new ExternalId($externalId));
+            $user = $this->users->findByExternalId(ExternalId::create($externalId));
         } catch (InvalidArgumentException) {
             // Un external_id buit no pot tenir perfil: cap consulta a fer.
             return null;

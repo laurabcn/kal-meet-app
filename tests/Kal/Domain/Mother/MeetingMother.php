@@ -20,7 +20,7 @@ final class MeetingMother
         return Meeting::create(
             $scheduledAt ?? DateTime::create('2026-08-15 18:00:00', 'Europe/Madrid'),
             $url ?? HttpsUrl::fromString('https://zoom.us/j/123456789'),
-            $title ?? new NonEmptyStringValue('Weekly catch-up'),
+            $title ?? NonEmptyStringValue::create('Weekly catch-up'),
             $timezone,
         );
     }
