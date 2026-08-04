@@ -72,20 +72,29 @@ Set `baseUrl` (default `http://localhost:8080`) and an `accessToken`. That token
 
 ### Getting an `access_token`
 
-From this repo root (with `supabase start`), use the Cursor skill **`supabase-access-token`** (ask the agent with email + password), or run the script it ships:
+From this repo root (with `supabase start`):
 
 ```bash
-# optional --signup creates the user if missing
-~/.cursor/skills/supabase-access-token/scripts/fetch-access-token.sh \
-  'you@example.com' 'your-password' --signup
+# defaults: organizer@kal.local / password / signup=1
+make access-token
+
+# override when needed
+make access-token email='you@example.com' password='your-password'
+make access-token signup=0   # login only, no signup attempt
 ```
 
-The script reads `API_URL` and `ANON_KEY` from `supabase status`, logs in via
-`/auth/v1/token?grant_type=password`, copies the `access_token` to the clipboard,
+Same script as `scripts/fetch-access-token.sh` (also used by the Cursor skill
+**`supabase-access-token`**). It reads `API_URL`, `ANON_KEY` and
+`SERVICE_ROLE_KEY` from `supabase status`, logs in via
+`/auth/v1/token?grant_type=password`, **ensures a `profiles` row for the JWT
+`sub`** (needed while local Auth signup has no `handle_new_user` yet / for
+users created before that trigger), copies the `access_token` to the clipboard,
 and prints it. Paste that value into Postman’s `accessToken` / Bearer field.
 
-The user’s `sub` must have a row in `profiles` (created by `handle_new_user()` on
-signup); otherwise the API responds `401` with `auth_profile_not_found`.
+If you still get `401 auth_profile_not_found`, apply migrations
+(`supabase db reset` or `supabase migration up`) so
+`20260803224500_profiles_handle_new_user.sql` is loaded, then run
+`make access-token` again.
 
 ## Skills
 
@@ -101,7 +110,7 @@ These live on your machine, not in this repo. Useful across KAL and other work:
 | --- | --- |
 | `reviewing-branch` | Structured review of the branch/PR (+ working tree): conventions, Blocker/Major/Minor, auth/infra/deploy. |
 | `describing-pr` | English PR body from the open PR or branch vs base; uses `.github/pull_request_template.md` when present; copies to clipboard. |
-| `supabase-access-token` | Fetches a Supabase **user** `access_token` (email + password, optional signup); clipboard + stdout. Script: `~/.cursor/skills/supabase-access-token/scripts/fetch-access-token.sh`. |
+| `supabase-access-token` | Fetches a Supabase **user** `access_token` (email + password, optional signup); clipboard + stdout. Prefer `make access-token` in this repo (`scripts/fetch-access-token.sh`). |
 
 ### Project — `.claude/skills/`
 

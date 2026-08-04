@@ -359,7 +359,7 @@ l'esquema real, ni el `CHECK length(id) = 26` (omès expressament perquè calgui
 poder desar un id corrupte i provar aquell camí d'error), ni les RLS — que en
 aquest camí no hi pinten res igualment, perquè el backend va amb la service_role
 key. Es va decidir deixar-ho així: la query és trivial i sense sintaxi de
-Postgres, i el `DbalKalRepository` (229 línies, transaccions i reconstrucció de
+Postgres, i el `KalRepository` (229 línies, transaccions i reconstrucció de
 l'agregat) no té cap cobertura contra BD real, o sigui que un tier d'integració
 de debò ha de començar per allà, no per aquí.
 

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "KAL Meet App — Auth & Kal",
-    "description": "Smoke collection for Supabase JWT auth (KAL-004) and `POST /kal`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment.\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` must **not** appear in the body — it comes from the token.",
+    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal` and `GET /kal/{id}`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment.\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** first so `kalId` is set for the GET happy path.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` must **not** appear in the body — it comes from the token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,6 +12,10 @@
     },
     {
       "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "kalId",
       "value": ""
     }
   ],
@@ -268,8 +272,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('kal_invalid_payload', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('kal_invalid_payload');",
+                  "pm.test('The request payload is invalid.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('The request payload is invalid.');",
                   "});"
                 ]
               }
@@ -311,8 +315,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('kal_invalid_json', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('kal_invalid_json');",
+                  "pm.test('The request body is not valid JSON.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('The request body is not valid JSON.');",
                   "});"
                 ]
               }
@@ -341,6 +345,136 @@
               "raw": "not json at all"
             },
             "url": "{{baseUrl}}/kal"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal/{id} — get (valid token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('organizer view with inviteToken', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data).to.be.an('object');",
+                  "  pm.expect(data.id).to.eql(pm.collectionVariables.get('kalId'));",
+                  "  pm.expect(data.inviteToken).to.be.a('string').and.not.empty;",
+                  "  pm.expect(data).to.not.have.property('organizerId');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Happy path. Uses `kalId` minted by POST create. Organizer-only view; includes `inviteToken` inside `data`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal/{id} — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal/{id} — invalid ULID (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The request payload is invalid.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('The request payload is invalid.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal/not-a-ulid",
+            "description": "Path id must be a valid ULID → 400 `The request payload is invalid.`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal/{id} — not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
+            "description": "Unknown id (or not organizer / soft-deleted) → 404 `Kal not found.`. Same body for all three cases."
           },
           "response": []
         }
