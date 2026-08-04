@@ -7,8 +7,9 @@ namespace App\Kal\Infrastructure\Repository\MySQL;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
-use App\Kal\Domain\KalRepositoryInterface;
+use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
@@ -84,21 +85,61 @@ final readonly class KalRepository implements KalRepositoryInterface
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal
     {
+        return $this->loadActive($id, $organizerId);
+    }
+
+    /**
+     * @throws KalNotFoundException
+     * @throws KalException
+     * @throws Exception
+     */
+    public function getActiveById(UlidValue $id): Kal
+    {
+        return $this->loadActive($id, null);
+    }
+
+    /**
+     * @throws KalNotFoundException
+     * @throws KalException
+     * @throws Exception
+     */
+    public function findByToken(UlidValue $kalId, InviteToken $inviteToken): Kal
+    {
+        $kal = $this->getActiveById($kalId);
+
+        if (!$kal->inviteToken->equals($inviteToken)) {
+            throw KalNotFoundException::create();
+        }
+
+        return $kal;
+    }
+
+    /**
+     * @throws KalNotFoundException
+     * @throws KalException
+     * @throws Exception
+     */
+    private function loadActive(UlidValue $id, ?UlidValue $organizerId): Kal
+    {
         $connection = $this->repository->connection();
         $kalId = $id->value();
 
-        $data = $connection
+        $query = $connection
             ->createQueryBuilder()
             ->select('*')
             ->from(self::TABLE_NAME)
             ->where('id = :kalId')
-            ->andWhere('organizer_id = :organizerId')
             ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
-            ->setParameter('organizerId', $organizerId->value())
-            ->setMaxResults(1)
-            ->executeQuery()
-            ->fetchAssociative();
+            ->setMaxResults(1);
+
+        if (null !== $organizerId) {
+            $query
+                ->andWhere('organizer_id = :organizerId')
+                ->setParameter('organizerId', $organizerId->value());
+        }
+
+        $data = $query->executeQuery()->fetchAssociative();
 
         if (!$data) {
             throw KalNotFoundException::create();

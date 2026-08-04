@@ -44,7 +44,7 @@ sense construir un servidor de sockets ni allotjar vídeo.
 - **Lectura/escriptura de missatges:** frontend Vue (TypeScript) →
   Supabase (`supabase-js`) amb JWT d’usuària + RLS.
 - **En viu:** Supabase Realtime sobre `debate_messages`.
-- **Creació de l’aula:** diferida. Avui `CreateKal` **no** inserta
+- **Creació de l’aula:** diferida. Avui `Kal` **no** inserta
   `debate_room` (xat candidat MVP, pendent de validació). Quan el xat
   es cablegi: insert al CreateKal + backfill dels KALs existents.
   Veure [`kal-aggregate-mvp.md`](kal-aggregate-mvp.md).

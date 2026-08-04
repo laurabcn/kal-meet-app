@@ -5,25 +5,32 @@ services:
 
     # El root PSR-4 `Tests\` viu a autoload-dev, fora del glob `App\` de
     # services.yaml: el doble s'ha de registrar a mà.
-    Tests\Kal\Infrastructure\Persistence\InMemoryKalRepository:
+    Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository:
+        public: true
+
+    Tests\Unit\Kal\Infrastructure\Persistence\InMemoryParticipationRepository:
         public: true
 
     # Als tests el port apunta al doble, mai al DbalKalRepository: cap test toca
     # Postgres. Public perquè el test pugui treure'l del container i comprovar
     # què s'hi ha persistit.
-    App\Kal\Domain\KalRepositoryInterface:
-        alias: Tests\Kal\Infrastructure\Persistence\InMemoryKalRepository
+    App\Kal\Domain\Repository\KalRepositoryInterface:
+        alias: Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository
         public: true
 
-    Tests\Shared\Infrastructure\Symfony\Security\StubTokenHandler: ~
+    App\Kal\Domain\Repository\ParticipationRepositoryInterface:
+        alias: Tests\Unit\Kal\Infrastructure\Persistence\InMemoryParticipationRepository
+        public: true
+
+    Tests\Unit\Shared\Infrastructure\Symfony\Security\StubTokenHandler: ~
 
     # security.yaml cita el handler pel nom de la classe; aliasant aquest id, el
     # firewall segueix sent el de veritat (mateix entry point, mateixos codis
     # d'error) però sense sortir a buscar el JWKS ni consultar `profiles`.
     App\Shared\Infrastructure\Symfony\Security\SupabaseTokenHandler:
-        alias: Tests\Shared\Infrastructure\Symfony\Security\StubTokenHandler
+        alias: Tests\Unit\Shared\Infrastructure\Symfony\Security\StubTokenHandler
 
     # La ruta sonda de l'escenari 12. Es registra com qualsevol controller —
     # `#[AsController]` i prou, cap menció a l'autenticació — perquè el que es
     # prova és que NO calgui fer-hi res perquè neixi protegida.
-    Tests\Security\Support\ProbeController: ~
+    Tests\Feature\Security\Support\ProbeController: ~

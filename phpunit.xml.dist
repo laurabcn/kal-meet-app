@@ -16,32 +16,11 @@
         <testsuite name="arch">
             <directory>tests/Arch</directory>
         </testsuite>
-        <testsuite name="bootstrap">
-            <directory>tests/Bootstrap</directory>
+        <testsuite name="unit">
+            <directory>tests/Unit</directory>
         </testsuite>
-        <testsuite name="domain">
-            <directory>tests/Kal/Domain</directory>
-            <directory>tests/Shared</directory>
-            <directory>tests/User/Domain</directory>
-        </testsuite>
-        <testsuite name="functional">
-            <directory>tests/Kal/Application</directory>
-        </testsuite>
-        <!--
-            Adaptadors del context User: el de persistència (amb SQLite en
-            memòria fent de doble — prova el SQL i la hidratació, NO l'esquema
-            real ni les RLS) i el d'autenticació. No en diem "integration" a
-            propòsit: avui cap test d'aquest repo toca Postgres, i el `CLAUDE.md`
-            demana que els d'integració vagin contra Supabase local. El dia que
-            existeixi aquell grup, serà una suite a part.
-        -->
-        <testsuite name="adapters">
-            <directory>tests/User/Infrastructure</directory>
-            <directory>tests/Kal/Infrastructure/Repository</directory>
-        </testsuite>
-        <testsuite name="e2e">
-            <directory>tests/Kal/Ui</directory>
-            <directory>tests/Security</directory>
+        <testsuite name="feature">
+            <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
 

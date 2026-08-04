@@ -6,7 +6,7 @@ namespace App\Kal\Application\Query\GetKal;
 
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
-use App\Kal\Domain\KalRepositoryInterface;
+use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Shared\Application\Query\QueryHandlerInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;

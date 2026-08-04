@@ -5,8 +5,9 @@ declare(strict_types=1);
 // Un test que no és a cap `<testsuite>` no falla: simplement no s'executa mai.
 // Ja va passar — `tests/User/` va viure un temps sencer sense estar a
 // `phpunit.xml.dist` i els seus 24 tests no s'havien corregut ni un cop. Ara hi
-// ha DUES configs (la normal i `phpunit.db.xml.dist`, que necessita Postgres),
-// o sigui que és encara més fàcil que un fitxer caigui entremig.
+// ha DUES configs (`phpunit.xml.dist` = Arch/Unit/Feature; `phpunit.db.xml.dist`
+// = Integration contra Postgres), o sigui que és encara més fàcil que un fitxer
+// caigui entremig.
 
 /** @return list<string> Directoris coberts per alguna suite, relatius a l'arrel. */
 function suiteDirectories(): array

@@ -66,7 +66,7 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 
 ### Application / Infrastructure
 
-- Command `CreateKal` (o equivalent) amb dades necessàries per
+- Command `Kal` (o equivalent) amb dades necessàries per
   `Kal::create` + generació d’`inviteToken`.
 - Port `KalRepositoryInterface` amb `save(Kal): void` (o `add` que
   persisteix i no assumeix IDs de BD).
