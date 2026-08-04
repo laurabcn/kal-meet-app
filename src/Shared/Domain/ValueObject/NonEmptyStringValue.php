@@ -11,9 +11,21 @@ readonly class NonEmptyStringValue
     /**
      * @throws InvalidArgumentException
      */
-    public function __construct(private string $value)
+    final protected function __construct(public private(set) string $value)
     {
         $this->guardAgainstEmptyString($value);
+    }
+
+    /**
+     * `static` i no `self`: sense això, `ExternalId::create()` tornaria un
+     * `NonEmptyStringValue` i qualsevol paràmetre tipat amb la subclasse
+     * petaria amb `TypeError`.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function create(string $value): static
+    {
+        return new static($value);
     }
 
     public function value(): string

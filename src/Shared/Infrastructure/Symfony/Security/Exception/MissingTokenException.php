@@ -11,4 +11,9 @@ final class MissingTokenException extends AuthenticationFailedException
     {
         return 'auth_token_missing';
     }
+
+    public function errorMessage(): string
+    {
+        return 'Authentication token is missing.';
+    }
 }

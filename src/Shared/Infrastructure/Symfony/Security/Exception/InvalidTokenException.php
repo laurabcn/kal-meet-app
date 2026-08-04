@@ -14,4 +14,9 @@ final class InvalidTokenException extends AuthenticationFailedException
     {
         return 'auth_token_invalid';
     }
+
+    public function errorMessage(): string
+    {
+        return 'Authentication token is invalid.';
+    }
 }

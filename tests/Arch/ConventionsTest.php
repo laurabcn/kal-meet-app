@@ -93,4 +93,5 @@ arch('user domain classes are final')
 arch('user repositories implement the domain port')
     ->expect('App\User\Infrastructure\Persistence')
     ->classes()
-    ->toImplement('App\User\Domain\UserRepositoryInterface');
+    ->toImplement('App\User\Domain\UserRepositoryInterface')
+    ->ignoring('App\User\Infrastructure\Persistence\Hydrator');

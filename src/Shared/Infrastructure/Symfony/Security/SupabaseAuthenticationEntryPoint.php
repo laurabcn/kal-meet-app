@@ -14,7 +14,8 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationFailureHandlerI
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 
 /**
- * El punt únic que converteix una fallada d'autenticació en `{"error": "<codi>"}`.
+ * El punt únic que converteix una fallada d'autenticació en
+ * `{"error":"<missatge>","code":"<codi>"}`.
  *
  * Fa dos papers perquè Symfony hi arriba per dos camins diferents, i cap dels
  * dos sol cobreix la taula de §3.5:
@@ -51,8 +52,11 @@ final readonly class SupabaseAuthenticationEntryPoint implements AuthenticationE
         // abans amb una excepció nostra.
         $failure = $exception instanceof AuthenticationFailedException
             ? $exception
-            : new MissingTokenException('auth_token_missing');
+            : new MissingTokenException();
 
-        return new JsonResponse(['error' => $failure->errorCode()], $failure->statusCode());
+        return new JsonResponse(
+            ['error' => $failure->errorMessage(), 'code' => $failure->errorCode()],
+            $failure->statusCode(),
+        );
     }
 }

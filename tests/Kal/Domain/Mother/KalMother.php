@@ -31,7 +31,7 @@ final class KalMother
         return Kal::create(
             $id ?? UlidValue::generate(),
             $organizerId ?? UlidValue::generate(),
-            $name ?? new NonEmptyStringValue('Summer Shawl KAL'),
+            $name ?? NonEmptyStringValue::create('Summer Shawl KAL'),
             $startsOn ?? DateTime::create('2026-08-01 00:00:00'),
             $locales ?? LocalesMother::catalanAndSpanish(),
             $files ?? FilesMother::empty(),

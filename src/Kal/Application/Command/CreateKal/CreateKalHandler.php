@@ -6,6 +6,7 @@ namespace App\Kal\Application\Command\CreateKal;
 
 use App\Kal\Domain\Clue;
 use App\Kal\Domain\Clues;
+use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\File;
@@ -35,6 +36,7 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
     }
 
     /**
+     * @throws KalAlreadyExistsException
      * @throws KalException
      * @throws InvalidArgumentException
      * @throws KalFileException
@@ -44,12 +46,12 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
         $kal = Kal::create(
             UlidValue::create($command->id),
             UlidValue::create($command->organizerId),
-            new NonEmptyStringValue($command->name),
+            NonEmptyStringValue::create($command->name),
             DateTime::create($command->startsOn),
             self::buildLocales($command->locales),
             self::buildFiles($command->files),
             self::buildClues($command->clues),
-            null !== $command->description ? new NonEmptyStringValue($command->description) : null,
+            null !== $command->description ? NonEmptyStringValue::create($command->description) : null,
             null !== $command->endsOn ? DateTime::create($command->endsOn) : null,
             $command->coverPath,
             self::buildMeetings($command->meetings),
@@ -127,13 +129,13 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
         $description = self::nullableString($data, 'description');
 
         return Clue::create(
-            new NonEmptyStringValue(self::string($data, 'name')),
+            NonEmptyStringValue::create(self::string($data, 'name')),
             DateTime::create(self::string($data, 'startsOn')),
             DateTime::create(self::string($data, 'endsOn')),
             self::buildFile(self::toArray($data['file'] ?? null)),
             self::buildMeeting(self::toArray($data['meeting'] ?? null)),
             Locale::fromString(self::string($data, 'locale')),
-            null !== $description ? new NonEmptyStringValue($description) : null,
+            null !== $description ? NonEmptyStringValue::create($description) : null,
         );
     }
 
@@ -146,8 +148,8 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
     private static function buildFile(array $data): File
     {
         return new File(
-            new NonEmptyStringValue(self::string($data, 'fileName')),
-            new NonEmptyStringValue(self::string($data, 'filePath')),
+            NonEmptyStringValue::create(self::string($data, 'fileName')),
+            NonEmptyStringValue::create(self::string($data, 'filePath')),
             FileSize::create(self::integer($data, 'fileSize')),
             FileExtension::tryFromStatus(self::string($data, 'fileExtension')),
             Locale::fromString(self::string($data, 'locale')),
@@ -167,11 +169,9 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
         $timezone = self::nullableString($data, 'timezone');
 
         return Meeting::create(
-            // scheduledAt és hora local de l'organitzadora: es construeix amb la
-            // seva timezone, mai amb la del servidor.
             DateTime::create(self::string($data, 'scheduledAt'), $timezone ?? Meeting::DEFAULT_TIMEZONE),
             HttpsUrl::fromString(self::string($data, 'url')),
-            new NonEmptyStringValue(self::string($data, 'title')),
+            NonEmptyStringValue::create(self::string($data, 'title')),
             $timezone,
         );
     }
@@ -208,19 +208,17 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
         $value = $data[$key] ?? null;
 
         if (!\is_int($value)) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
+    /** @throws InvalidArgumentException */
     private static function toString(mixed $value): string
     {
         if (!\is_string($value) || '' === $value) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
@@ -234,7 +232,7 @@ final readonly class CreateKalHandler implements CommandHandlerInterface
     private static function toArray(mixed $value): array
     {
         if (!\is_array($value)) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;

@@ -8,13 +8,26 @@ use App\Kal\Domain\Exception\KalException;
 
 final readonly class InviteToken
 {
-    private function __construct(private string $value)
+    private function __construct(public private(set) string $value)
     {
     }
 
-    /**
-     * @throws KalException
-     */
+    /** @throws KalException */
+    public static function fromString(string $value): self
+    {
+        if ('' === $value) {
+            throw KalException::emptyInviteToken();
+        }
+
+        return new self($value);
+    }
+
+    public static function create(string $parseString): self
+    {
+        return new self($parseString);
+    }
+
+    /** @throws KalException */
     public static function generate(): self
     {
         try {
@@ -24,18 +37,6 @@ final readonly class InviteToken
         }
 
         return new self($token);
-    }
-
-    /**
-     * @throws KalException
-     */
-    public static function fromString(string $value): self
-    {
-        if ('' === $value) {
-            throw KalException::emptyInviteToken();
-        }
-
-        return new self($value);
     }
 
     public function value(): string

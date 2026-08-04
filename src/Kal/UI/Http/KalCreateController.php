@@ -9,11 +9,11 @@ use App\Shared\Application\Command\CommandBusInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Symfony\Http\Response\ApiHttpCreatedResponse;
+use App\Shared\Infrastructure\Symfony\Http\Response\ApiHttpErrorResponse;
 use App\Shared\Infrastructure\Symfony\Security\SupabaseUser;
 use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
@@ -33,9 +33,11 @@ final readonly class KalCreateController
         try {
             $command = self::buildCommand($request->toArray(), $user->id());
         } catch (JsonException) {
-            return self::badRequest('kal_invalid_json');
+            $error = InvalidArgumentException::invalidJson();
+
+            return ApiHttpErrorResponse::badRequest($error->getMessage(), $error->errorCode());
         } catch (InvalidArgumentException $exception) {
-            return self::badRequest($exception->getMessage());
+            return ApiHttpErrorResponse::badRequest($exception->getMessage(), $exception->errorCode());
         }
 
         $this->commandBus->dispatch($command);
@@ -45,7 +47,6 @@ final readonly class KalCreateController
 
     /**
      * @param array<array-key, mixed> $payload
-     * @param non-empty-string        $organizerId ULID de `profiles.id`, sortit del token
      *
      * @throws InvalidArgumentException
      */
@@ -78,21 +79,13 @@ final readonly class KalCreateController
         $value = self::requiredString($payload, $key);
 
         try {
-            // Canonicalitza (p.ex. minúscules → majúscules) perquè el client i
-            // el que es persisteix coincideixin.
             return UlidValue::create($value)->value();
         } catch (InvalidArgumentException) {
-            // UlidValue parla en prosa anglesa; al contracte HTTP només hi
-            // caben codis (spec api-response).
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
     }
 
     /**
-     * Qui organitza surt del token i de cap altre lloc. Ignorar el camp en
-     * comptes de rebutjar-lo deixaria el client creient que ha triat
-     * l'organitzadora: es rebutja perquè el desacord es vegi (spec §3.4).
-     *
      * @param array<array-key, mixed> $payload
      *
      * @throws InvalidArgumentException
@@ -100,7 +93,7 @@ final readonly class KalCreateController
     private static function rejectTokenDerived(array $payload, string $key): void
     {
         if (\array_key_exists($key, $payload)) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
     }
 
@@ -114,7 +107,7 @@ final readonly class KalCreateController
         $value = $payload[$key] ?? null;
 
         if (!\is_string($value) || '' === $value) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
@@ -134,7 +127,7 @@ final readonly class KalCreateController
         }
 
         if (!\is_string($value) || '' === $value) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
@@ -152,7 +145,7 @@ final readonly class KalCreateController
         $value = $payload[$key] ?? null;
 
         if (!\is_array($value) || !array_is_list($value) || [] === $value) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
@@ -174,15 +167,9 @@ final readonly class KalCreateController
         }
 
         if (!\is_array($value) || !array_is_list($value)) {
-            throw new InvalidArgumentException('kal_invalid_payload');
+            throw InvalidArgumentException::invalidPayload();
         }
 
         return $value;
-    }
-
-    /** @throws \InvalidArgumentException */
-    private static function badRequest(string $code): JsonResponse
-    {
-        return new JsonResponse(['error' => $code], Response::HTTP_BAD_REQUEST);
     }
 }

@@ -75,6 +75,47 @@ final class Kal extends AggregateRoot
     }
 
     /** @throws KalException */
+    public static function reconstitute(
+        UlidValue $id,
+        UlidValue $organizerId,
+        NonEmptyStringValue $name,
+        ?NonEmptyStringValue $description,
+        Files $files,
+        Clues $clues,
+        Locales $locales,
+        DateTime $startsOn,
+        ?DateTime $endsOn,
+        ?string $coverPath,
+        InviteToken $inviteToken,
+        Meetings $meetings,
+        DateTime $createdAt,
+        DateTime $updatedAt,
+    ): self {
+        self::guardAgainstInvalidDateRange($startsOn, $endsOn);
+        self::guardCluesWithinRange($clues, $startsOn, $endsOn);
+        self::guardFilesLocaleEnabled($files, $locales);
+        self::guardCluesFileLocaleEnabled($clues, $locales);
+        self::guardCluesLocaleEnabled($clues, $locales);
+
+        return new self(
+            $id,
+            $organizerId,
+            $name,
+            $description,
+            $files,
+            $clues,
+            $locales,
+            $startsOn,
+            $endsOn,
+            $coverPath,
+            $inviteToken,
+            $meetings,
+            $createdAt,
+            $updatedAt,
+        );
+    }
+
+    /** @throws KalException */
     public function addClue(Clue $clue): void
     {
         self::guardClueWithinRange($clue, $this->startsOn, $this->endsOn);

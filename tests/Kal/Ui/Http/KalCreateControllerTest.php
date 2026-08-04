@@ -74,7 +74,7 @@ it('answers 400 when the body is not json', function (): void {
     $client->request('POST', '/kal', server: authHeaders(), content: 'not json at all');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_json"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request body is not valid JSON.","code":"invalid_json"}');
 });
 
 it('answers 400 when the body is an empty json object', function (): void {
@@ -83,7 +83,7 @@ it('answers 400 when the body is an empty json object', function (): void {
     $client->request('POST', '/kal', server: authHeaders(), content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
 it('answers 400 when locales is not a list', function (): void {
@@ -92,7 +92,7 @@ it('answers 400 when locales is not a list', function (): void {
     $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['locales' => 'ca'])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
 it('rejects a body carrying organizerId, even if it matches the token', function (): void {
@@ -104,7 +104,7 @@ it('rejects a body carrying organizerId, even if it matches the token', function
     $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['organizerId' => StubTokenHandler::USER_ID])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
 it('creates no kal attributed to someone else through the body', function (): void {
@@ -138,7 +138,7 @@ it('answers 400 when id is not a ulid', function (): void {
     $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['id' => 'not-a-ulid'])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_payload"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
 it('answers 400 when a domain invariant is violated', function (): void {
@@ -155,7 +155,7 @@ it('answers 400 when a domain invariant is violated', function (): void {
     );
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_invalid_date_range"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The kal end date must be after the start date.","code":"kal_invalid_date_range"}');
 });
 
 it('answers 409 when the kal id already exists', function (): void {
@@ -169,7 +169,7 @@ it('answers 409 when the kal id already exists', function (): void {
     $client->request('POST', '/kal', server: authHeaders(), content: $payload);
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CONFLICT)
-        ->and($client->getResponse()->getContent())->toBe('{"error":"kal_already_exists"}');
+        ->and($client->getResponse()->getContent())->toBe('{"error":"A kal with this id already exists.","code":"kal_already_exists"}');
 });
 
 it('answers 405 for a method other than POST', function (): void {

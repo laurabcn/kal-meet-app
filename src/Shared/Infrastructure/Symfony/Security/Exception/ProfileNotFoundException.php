@@ -14,4 +14,9 @@ final class ProfileNotFoundException extends AuthenticationFailedException
     {
         return 'auth_profile_not_found';
     }
+
+    public function errorMessage(): string
+    {
+        return 'User profile was not found.';
+    }
 }

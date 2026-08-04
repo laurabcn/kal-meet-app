@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\InviteToken;
+use App\Kal\Domain\Kal;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -20,7 +21,7 @@ use Tests\Shared\Domain\ValueObject\Mother\LocaleMother;
 it('creates a kal with only the required fields', function (): void {
     $id = UlidValue::generate();
     $organizerId = UlidValue::generate();
-    $name = new NonEmptyStringValue('Summer Shawl KAL');
+    $name = NonEmptyStringValue::create('Summer Shawl KAL');
     $startsOn = DateTime::create('2026-08-01 00:00:00');
 
     $kal = KalMother::create(id: $id, organizerId: $organizerId, name: $name, startsOn: $startsOn);
@@ -39,7 +40,7 @@ it('creates a kal with only the required fields', function (): void {
 });
 
 it('creates a kal with all optional fields populated', function (): void {
-    $description = new NonEmptyStringValue('A knit-along for the summer');
+    $description = NonEmptyStringValue::create('A knit-along for the summer');
     $endsOn = DateTime::create('2026-09-01 00:00:00');
     $coverPath = 'kals/summer-shawl/portada.webp';
 
@@ -90,13 +91,13 @@ it('throws when ends on is before starts on', function (): void {
         startsOn: DateTime::create('2026-08-01 00:00:00'),
         endsOn: DateTime::create('2026-07-31 00:00:00'),
     );
-})->throws(KalException::class, 'kal_invalid_date_range');
+})->throws(KalException::class, 'The kal end date must be after the start date.');
 
 it('throws when ends on equals starts on', function (): void {
     $startsOn = DateTime::create('2026-08-01 00:00:00');
 
     KalMother::create(startsOn: $startsOn, endsOn: $startsOn);
-})->throws(KalException::class, 'kal_invalid_date_range');
+})->throws(KalException::class, 'The kal end date must be after the start date.');
 
 it('throws and creates no kal when one of the initial clues falls outside the range', function (): void {
     $clueOutsideRange = ClueMother::create(
@@ -105,7 +106,7 @@ it('throws and creates no kal when one of the initial clues falls outside the ra
     );
 
     KalMother::create(clues: CluesMother::of($clueOutsideRange));
-})->throws(KalException::class, 'kal_clue_outside_range');
+})->throws(KalException::class, 'A clue date range falls outside the kal date range.');
 
 it('does not add a clue that starts before the kal', function (): void {
     $kal = KalMother::create();
@@ -115,7 +116,7 @@ it('does not add a clue that starts before the kal', function (): void {
     );
 
     expect(fn () => $kal->addClue($clueBeforeStart))
-        ->toThrow(KalException::class, 'kal_clue_outside_range');
+        ->toThrow(KalException::class, 'A clue date range falls outside the kal date range.');
     expect($kal->clues->all())->toBeEmpty();
 });
 
@@ -127,7 +128,7 @@ it('does not add a clue that ends after a bounded kal', function (): void {
     );
 
     expect(fn () => $kal->addClue($clueAfterEnd))
-        ->toThrow(KalException::class, 'kal_clue_outside_range');
+        ->toThrow(KalException::class, 'A clue date range falls outside the kal date range.');
     expect($kal->clues->all())->toBeEmpty();
 });
 
@@ -183,7 +184,7 @@ it('throws and creates no kal when a kal file uses a locale that is not enabled'
         locales: LocalesMother::catalanAndSpanish(),
         files: FilesMother::withLocale(LocaleMother::english()),
     );
-})->throws(KalException::class, 'kal_file_locale_not_enabled');
+})->throws(KalException::class, 'A file locale is not enabled for this kal.');
 
 it('throws and creates no kal when an initial clue file uses a locale that is not enabled', function (): void {
     $clueInEnglish = ClueMother::create(file: FileMother::withLocale(LocaleMother::english()));
@@ -192,7 +193,7 @@ it('throws and creates no kal when an initial clue file uses a locale that is no
         locales: LocalesMother::catalanAndSpanish(),
         clues: CluesMother::of($clueInEnglish),
     );
-})->throws(KalException::class, 'kal_file_locale_not_enabled');
+})->throws(KalException::class, 'A file locale is not enabled for this kal.');
 
 it('throws and creates no kal when an initial clue uses a locale that is not enabled', function (): void {
     $clueInEnglish = ClueMother::create(locale: LocaleMother::english());
@@ -201,14 +202,14 @@ it('throws and creates no kal when an initial clue uses a locale that is not ena
         locales: LocalesMother::catalanAndSpanish(),
         clues: CluesMother::of($clueInEnglish),
     );
-})->throws(KalException::class, 'kal_clue_locale_not_enabled');
+})->throws(KalException::class, 'A clue locale is not enabled for this kal.');
 
 it('does not add a clue whose locale is not enabled', function (): void {
     $kal = KalMother::create(locales: LocalesMother::catalanAndSpanish());
     $clueInEnglish = ClueMother::create(locale: LocaleMother::english());
 
     expect(fn () => $kal->addClue($clueInEnglish))
-        ->toThrow(KalException::class, 'kal_clue_locale_not_enabled');
+        ->toThrow(KalException::class, 'A clue locale is not enabled for this kal.');
     expect($kal->clues->all())->toBeEmpty();
 });
 
@@ -226,7 +227,7 @@ it('does not add a clue whose file uses a locale that is not enabled', function 
     $clueInEnglish = ClueMother::create(file: FileMother::withLocale(LocaleMother::english()));
 
     expect(fn () => $kal->addClue($clueInEnglish))
-        ->toThrow(KalException::class, 'kal_file_locale_not_enabled');
+        ->toThrow(KalException::class, 'A file locale is not enabled for this kal.');
     expect($kal->clues->all())->toBeEmpty();
 });
 
@@ -249,7 +250,7 @@ it('generates a unique invite token for each kal', function (): void {
 
 it('throws when reconstructing an invite token from an empty string', function (): void {
     InviteToken::fromString('');
-})->throws(KalException::class, 'kal_empty_invite_token');
+})->throws(KalException::class, 'The invite token cannot be empty.');
 
 it('reconstructs an invite token from a valid string', function (): void {
     $token = InviteToken::fromString('abc123def456');
@@ -286,11 +287,68 @@ it('adds a meeting to an already created kal', function (): void {
 
 it('adds multiple meetings to a kal', function (): void {
     $kal = KalMother::create();
-    $meeting1 = MeetingMother::create(title: new NonEmptyStringValue('Session 1'));
-    $meeting2 = MeetingMother::create(title: new NonEmptyStringValue('Session 2'));
+    $meeting1 = MeetingMother::create(title: NonEmptyStringValue::create('Session 1'));
+    $meeting2 = MeetingMother::create(title: NonEmptyStringValue::create('Session 2'));
 
     $kal->addMeeting($meeting1);
     $kal->addMeeting($meeting2);
 
     expect($kal->meetings->all())->toHaveCount(2);
 });
+
+// --- reconstitute ---
+
+it('reconstitutes a kal preserving id, invite token and timestamps instead of minting new ones', function (): void {
+    $id = UlidValue::generate();
+    $organizerId = UlidValue::generate();
+    $inviteToken = InviteToken::fromString('persisted-token');
+    $createdAt = DateTime::create('2026-07-01 00:00:00');
+    $updatedAt = DateTime::create('2026-07-02 00:00:00');
+
+    $kal = Kal::reconstitute(
+        $id,
+        $organizerId,
+        NonEmptyStringValue::create('Summer Shawl KAL'),
+        null,
+        FilesMother::empty(),
+        CluesMother::empty(),
+        LocalesMother::catalanAndSpanish(),
+        DateTime::create('2026-08-01 00:00:00'),
+        null,
+        null,
+        $inviteToken,
+        MeetingsMother::empty(),
+        $createdAt,
+        $updatedAt,
+    );
+
+    expect($kal->id->equals($id))->toBeTrue()
+        ->and($kal->organizerId->equals($organizerId))->toBeTrue()
+        ->and($kal->inviteToken->equals($inviteToken))->toBeTrue()
+        ->and($kal->createdAt->equals($createdAt))->toBeTrue()
+        ->and($kal->updatedAt->equals($updatedAt))->toBeTrue();
+});
+
+it('rejects reconstituting a kal whose persisted clues fall outside its range', function (): void {
+    $clueOutsideRange = ClueMother::create(
+        startsOn: DateTime::create('2026-07-15 00:00:00'),
+        endsOn: DateTime::create('2026-07-20 00:00:00'),
+    );
+
+    Kal::reconstitute(
+        UlidValue::generate(),
+        UlidValue::generate(),
+        NonEmptyStringValue::create('Summer Shawl KAL'),
+        null,
+        FilesMother::empty(),
+        CluesMother::of($clueOutsideRange),
+        LocalesMother::catalanAndSpanish(),
+        DateTime::create('2026-08-01 00:00:00'),
+        null,
+        null,
+        InviteToken::fromString('persisted-token'),
+        MeetingsMother::empty(),
+        DateTime::now(),
+        DateTime::now(),
+    );
+})->throws(KalException::class, 'A clue date range falls outside the kal date range.');

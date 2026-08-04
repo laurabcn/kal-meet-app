@@ -3,7 +3,7 @@
 > Status: **COMPLETE — all 13 sections written.** 6 open questions in §13 need the
 > architect's call; none blocks Increment A (§8.1).
 > Scope: branch `KAL-002` (the `CreateKal` write flow + the `Kal` aggregate,
-> value objects and `DbalKalRepository` already written on this branch).
+> value objects and `KalRepository` already written on this branch).
 > This is a **test spec**: it defines which tests must exist, at which layer,
 > with which scenarios and acceptance criteria — it is a work order for writing
 > the tests, not the tests themselves.
@@ -21,7 +21,7 @@ KAL. The code already on the branch is **unevenly tested**:
 - **Application** (`CreateKalHandler`) — covered by `CreateKalHandlerTest`, but
   only against an **in-memory** repository double (`InMemoryKalRepository`). The
   handler's orchestration is exercised; the real SQL path is not.
-- **Infrastructure** (`DbalKalRepository`) — **zero tests**. The real SQL writes
+- **Infrastructure** (`KalRepository`) — **zero tests**. The real SQL writes
   (six inserts across six tables, explicit transaction, rollback on failure)
   have never run under test.
 - **Ui** — **does not exist**. There is no `POST /kals` endpoint; the HTTP
@@ -35,7 +35,7 @@ the real command bus is unproven.
 
 This spec closes those gaps by defining a **three-tier, fully in-memory** test
 suite for the `CreateKal` flow. **Decision (architect):** the whole suite is
-hermetic — no external database. The real SQL path (`DbalKalRepository`) is
+hermetic — no external database. The real SQL path (`KalRepository`) is
 **deliberately left untested** to keep the suite fast and free of any Supabase
 dependency; this is an accepted trade-off, recorded in §11 and §12, not a gap
 this suite closes. What the suite *does* close: the request→command translation
@@ -115,7 +115,7 @@ present/absent, every domain error code) is cheaper and clearer dispatched
 straight onto the bus, so e2e carries only a **thin slice** proving the HTTP
 contract. See §6.
 
-**Consequence to hold explicitly:** `DbalKalRepository` — the six inserts across
+**Consequence to hold explicitly:** `KalRepository` — the six inserts across
 six tables, the explicit transaction and the rollback — is exercised by **no
 tier of this suite**. The historical `created_at`-null bug from `CLAUDE.md`
 cannot be caught here. Two mitigations, both recorded in §11/§12 rather than
@@ -197,7 +197,7 @@ writable:
   `willFailWith(KalException $e)`) rather than a subclass-per-test.
 - **`debateRoomsCreated()` is mislabelled.** It counts `create()` calls; it does
   not observe anything about debate rooms, because creating them is
-  `DbalKalRepository`'s business and that class is out of this suite (§3). Either
+  `KalRepository`'s business and that class is out of this suite (§3). Either
   rename it to what it measures (`createCallCount()`) or drop it — as named it
   invites an assertion that would prove nothing.
 
@@ -227,7 +227,7 @@ recording *why*, because §6 depends on it:
   `MessageStoreRepositoryInterface` implementation exists anywhere in `src/` and
   `MessageStoreRepositoryMapper` defaults to an empty map, making `find()`
   always return `null`;
-- `DbalKalRepository` is replaced by the double, and DBAL connections are lazy.
+- `KalRepository` is replaced by the double, and DBAL connections are lazy.
 
 That is a property to **protect**, not to rely on: the first storable command or
 the first query handler that reaches DBAL would silently start talking to
@@ -388,7 +388,7 @@ Both were on the table. They differ in one way that matters:
   phone. The cost: `id` becomes untrusted input, so the endpoint must validate it
   is a real 26-char ULID and must define a `409 Conflict` path for a duplicate
   primary key — which today would surface as `kal_persistence_failed` (a 500),
-  since `DbalKalRepository` wraps any driver failure in
+  since `KalRepository` wraps any driver failure in
   `KalException::persistenceFailed()`.
 
 Recommendation: **controller-minted for KAL-002.** The idempotency win is real
@@ -496,7 +496,7 @@ code today and that no test reaches:
 **One existing test to fix, not extend.** `it('creates exactly one debate room
 when persisting')` asserts `$repository->debateRoomsCreated() === 1`, but that
 counter is incremented by `InMemoryKalRepository::create()` itself — creating
-debate rooms is `DbalKalRepository`'s job, which is outside this suite (§3). The
+debate rooms is `KalRepository`'s job, which is outside this suite (§3). The
 test therefore proves only that `create()` was called once, which the first test
 already asserts. It reads as debate-room coverage while providing none: either
 rename it to what it measures or delete it, and record real debate-room coverage
@@ -549,7 +549,7 @@ mapping, and `401` on a missing or invalid JWT.
 ### 6.4 Deliberately not covered by any tier
 
 Stated so the gaps are decisions, not oversights: the six inserts, transaction
-and rollback in `DbalKalRepository`; debate-room creation; RLS policies (§2);
+and rollback in `KalRepository`; debate-room creation; RLS policies (§2);
 read, update and soft-delete flows (KAL-002 is create-only); and `409` on a
 duplicate id, which only becomes reachable if §5.4.1 is ever revisited in favour
 of client-minted ids.
@@ -565,7 +565,7 @@ A checklist, not a vibe. Everything below was verified against the branch.
 | `Kal/Domain` — `Kal`, `Clue`, `Locales`, `Meeting`, `FileSize` | tested |
 | `Kal/Domain` — 7 other classes | **no test file** (7.2) |
 | `Kal/Application` — `CreateKalHandler` | 15 functional tests; 12 scenario gaps (§6.1) |
-| `Kal/Infrastructure` — `DbalKalRepository` | **zero tests**, deliberately out of scope (§3, §6.4) |
+| `Kal/Infrastructure` — `KalRepository` | **zero tests**, deliberately out of scope (§3, §6.4) |
 | `Kal/Ui` | does not exist (§5) |
 | `Shared/Domain/ValueObject` — `DateTime`, `Locale`, `Url`, `HttpsUrl` | tested (`HttpsUrl` inside `UrlTest`) |
 | `Shared/Domain/ValueObject` — `UlidValue`, `NonEmptyStringValue` | **no test file**, and both are used everywhere (7.2) |
@@ -730,13 +730,13 @@ opinion. The suite ships in three increments; each is independently mergeable.
       as a criterion so the next double gets the same scrutiny.
 - [ ] **Tier is implied by location:** a reader can tell a test's tier from its
       directory, with no per-file base-class boilerplate (§4.2, step 6).
-- [ ] **The deferred SQL work is written down.** `DbalKalRepository` remains
+- [ ] **The deferred SQL work is written down.** `KalRepository` remains
       untested by decision (§3), so "done" for this suite requires that the gap
       is recorded somewhere durable — not that it is closed.
 
 ### 8.5 Explicitly NOT required for done
 
-Restated because a reviewer will ask: `DbalKalRepository` coverage, debate-room
+Restated because a reviewer will ask: `KalRepository` coverage, debate-room
 creation, RLS policies, the token→`profiles`→ULID mapping, `401` behaviour, read
 /update/soft-delete flows, and `409` on duplicate ids. Each is either another
 task's scope (§7.5) or out of scope entirely (§6.4).
@@ -776,7 +776,7 @@ Consolidated from §2, §6.4 and §7.5 so a reviewer has one place to look:
 
 | Not covered here | Where it belongs |
 |---|---|
-| `DbalKalRepository` — six inserts, transaction, rollback | deferred SQL task (§11) |
+| `KalRepository` — six inserts, transaction, rollback | deferred SQL task (§11) |
 | Debate-room creation | same deferred task |
 | RLS policies | Supabase-side (pgTAP), frontend's direct-access concern |
 | Error-code normalization + response envelope | **`ApiResponse` branch** |
@@ -791,7 +791,7 @@ Consolidated from §2, §6.4 and §7.5 so a reviewer has one place to look:
 
 Each of these is a decision with a cost that was accepted knowingly.
 
-**The suite has no database tier.** *Cost:* `DbalKalRepository` ships unverified —
+**The suite has no database tier.** *Cost:* `KalRepository` ships unverified —
 six inserts, an explicit transaction and a rollback path that have never run
 under test. The historical `created_at`-null bug class from CLAUDE.md is exactly
 what a DB tier would catch. *Why accepted:* speed and zero Supabase dependency,

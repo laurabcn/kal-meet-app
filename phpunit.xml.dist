@@ -37,6 +37,7 @@
         -->
         <testsuite name="adapters">
             <directory>tests/User/Infrastructure</directory>
+            <directory>tests/Kal/Infrastructure/Repository</directory>
         </testsuite>
         <testsuite name="e2e">
             <directory>tests/Kal/Ui</directory>

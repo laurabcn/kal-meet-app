@@ -20,14 +20,14 @@ it('rejects an empty id or external id', function (): void {
     $id = (string) new Ulid();
 
     expect(fn () => AuthenticatedUserIdentity::create('', 'ext'))
-        ->toThrow(InvalidArgumentException::class, 'auth_identity_incomplete')
+        ->toThrow(InvalidArgumentException::class, 'The authenticated identity is incomplete.')
         ->and(fn () => AuthenticatedUserIdentity::create($id, ''))
-        ->toThrow(InvalidArgumentException::class, 'auth_identity_incomplete');
+        ->toThrow(InvalidArgumentException::class, 'The authenticated identity is incomplete.');
 });
 
 it('rejects a non-ULID id so a Supabase uuid cannot cross the boundary as profiles.id', function (): void {
     expect(fn () => AuthenticatedUserIdentity::create(
         '550e8400-e29b-41d4-a716-446655440000',
         '550e8400-e29b-41d4-a716-446655440000',
-    ))->toThrow(InvalidArgumentException::class, 'auth_identity_incomplete');
+    ))->toThrow(InvalidArgumentException::class, 'The authenticated identity is incomplete.');
 });

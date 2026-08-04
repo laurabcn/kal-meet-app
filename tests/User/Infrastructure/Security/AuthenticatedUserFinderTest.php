@@ -51,5 +51,5 @@ it('lets a database failure propagate instead of passing it off as a missing pro
     $this->repository->failWith(UserException::persistenceFailed(new RuntimeException('connection refused')));
 
     expect(fn () => $this->finder->findByExternalId('f47ac10b-58cc-4372-a567-0e02b2c3d479'))
-        ->toThrow(UserException::class, 'user_persistence_failed');
+        ->toThrow(UserException::class, 'Failed to load the user profile.');
 });

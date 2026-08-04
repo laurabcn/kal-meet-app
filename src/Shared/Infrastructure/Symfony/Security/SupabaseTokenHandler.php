@@ -51,7 +51,7 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
                 ['external_id' => $externalId],
             );
 
-            throw new ProfileNotFoundException('auth_profile_not_found');
+            throw new ProfileNotFoundException();
         }
 
         return new UserBadge(
@@ -74,11 +74,11 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
         } catch (ExpiredException $exception) {
             // Primer: ExpiredException estén UnexpectedValueException i el
             // catch de sota se l'empassaria com a "invàlid".
-            throw new ExpiredTokenException('auth_token_expired', 0, $exception);
+            throw new ExpiredTokenException(previous: $exception);
         } catch (\UnexpectedValueException|\DomainException|\InvalidArgumentException $exception) {
             // Malformat, `kid` desconegut, algorisme no suportat, signatura
             // tocada o `nbf`/`iat` en el futur.
-            throw new InvalidTokenException('auth_token_invalid', 0, $exception);
+            throw new InvalidTokenException(previous: $exception);
         }
 
         self::assertExpires($claims);
@@ -99,7 +99,7 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
     private static function assertExpires(array $claims): void
     {
         if (!isset($claims['exp'])) {
-            throw new InvalidTokenException('auth_token_invalid');
+            throw new InvalidTokenException();
         }
     }
 
@@ -111,7 +111,7 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
     private function assertIssuer(array $claims): void
     {
         if (($claims['iss'] ?? null) !== $this->issuer) {
-            throw new InvalidTokenException('auth_token_invalid');
+            throw new InvalidTokenException();
         }
     }
 
@@ -126,7 +126,7 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
 
         // `aud` pot ser una cadena o una llista; Supabase n'emet una de sola.
         if (!\in_array($this->audience, \is_array($audience) ? $audience : [$audience], true)) {
-            throw new InvalidTokenException('auth_token_invalid');
+            throw new InvalidTokenException();
         }
     }
 
@@ -142,7 +142,7 @@ final readonly class SupabaseTokenHandler implements AccessTokenHandlerInterface
         $subject = $claims['sub'] ?? null;
 
         if (!\is_string($subject) || '' === $subject) {
-            throw new InvalidTokenException('auth_token_invalid');
+            throw new InvalidTokenException();
         }
 
         return $subject;

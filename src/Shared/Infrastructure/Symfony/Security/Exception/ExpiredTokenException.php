@@ -11,4 +11,9 @@ final class ExpiredTokenException extends AuthenticationFailedException
     {
         return 'auth_token_expired';
     }
+
+    public function errorMessage(): string
+    {
+        return 'Authentication token has expired.';
+    }
 }

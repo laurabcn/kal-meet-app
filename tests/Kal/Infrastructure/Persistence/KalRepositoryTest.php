@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
-use App\Kal\Infrastructure\Persistence\DbalKalRepository;
+use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Shared\Domain\ValueObject\UlidValue;
+use App\Shared\Infrastructure\Repository\MySQLRepository;
 use Psr\Log\NullLogger;
 use Tests\Kal\Domain\Mother\ClueMother;
 use Tests\Kal\Domain\Mother\CluesMother;
@@ -25,7 +29,11 @@ beforeEach(function (): void {
     SupabaseConnection::begin();
 
     $this->connection = SupabaseConnection::get();
-    $this->repository = new DbalKalRepository($this->connection, new NullLogger());
+    $this->repository = new KalRepository(
+        new MySQLRepository($this->connection),
+        new NullLogger(),
+        new KalHydrator(),
+    );
 
     // La FK kals.organizer_id -> profiles.id demana un perfil de veritat.
     $this->organizerId = UlidValue::generate();
@@ -38,7 +46,7 @@ afterEach(function (): void {
     SupabaseConnection::rollBack();
 });
 
-it('writes the whole aggregate across its six tables', function (): void {
+it('writes the whole aggregate across its tables', function (): void {
     $kal = KalMother::create(
         files: FilesMother::of(FileMother::create()),
         clues: CluesMother::of(ClueMother::create()),
@@ -56,9 +64,7 @@ it('writes the whole aggregate across its six tables', function (): void {
         ->and($count('SELECT count(*) FROM kal_files WHERE kal_id = :id'))->toBe(1)
         ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(1)
         // Dues: la del KAL i la obligatòria de la pista.
-        ->and($count('SELECT count(*) FROM meetings WHERE kal_id = :id'))->toBe(2)
-        // La invariant que abans "provava" un comptador del doble en memòria.
-        ->and($count('SELECT count(*) FROM debate_rooms WHERE kal_id = :id'))->toBe(1);
+        ->and($count('SELECT count(*) FROM meetings WHERE kal_id = :id'))->toBe(2);
 });
 
 it('stores the kal columns with the values the domain holds', function (): void {
@@ -98,7 +104,7 @@ it('links a clue meeting to its clue and a kal meeting to none', function (): vo
 
 it('leaves nothing behind when a later insert fails', function (): void {
     // Aquest test NO pot córrer dins de la transacció d'aïllament dels altres.
-    // Si hi corre, l'emmascara: en petar l'INSERT, el `safeRollBack()` del
+    // Si hi corre, l'emmascara: en petar l'INSERT, el rollback del
     // repositori desfà la transacció DEL TEST i els comptadors donen 0 encara
     // que `create()` no n'hagi obert cap de pròpia. Comprovat mutant el
     // repositori: sense transacció, el test passava igual. Per això corre sense
@@ -145,16 +151,16 @@ it('leaves nothing behind when a later insert fails', function (): void {
             ],
         );
 
+        // UniqueConstraintViolationException → kal_already_exists (amb rollback).
         expect(fn () => $this->repository->create($kal))
-            ->toThrow(KalException::class, 'kal_persistence_failed');
+            ->toThrow(KalAlreadyExistsException::class, 'A kal with this id already exists.');
 
         $id = $kal->id->value();
         $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
 
         expect($count('SELECT count(*) FROM kals WHERE id = :id'))->toBe(0)
             ->and($count('SELECT count(*) FROM kal_locales WHERE kal_id = :id'))->toBe(0)
-            ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(0)
-            ->and($count('SELECT count(*) FROM debate_rooms WHERE kal_id = :id'))->toBe(0);
+            ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(0);
     } finally {
         // Sense transacció que ho desfaci, i també si l'asserció ha petat: les
         // filles cauen soles per ON DELETE CASCADE des de kals.
@@ -170,5 +176,53 @@ it('reports a missing organizer as a persistence failure, not a crash', function
     $kal = KalMother::create(organizerId: UlidValue::generate());
 
     expect(fn () => $this->repository->create($kal))
-        ->toThrow(KalException::class, 'kal_persistence_failed');
+        ->toThrow(KalException::class, 'Failed to persist the kal.');
+});
+
+it('throws kal_not_found when no kal exists for the given id', function (): void {
+    expect(fn () => $this->repository->findById(UlidValue::generate(), $this->organizerId))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+it('throws kal_not_found when the kal is soft-deleted', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $this->connection->executeStatement(
+        'UPDATE kals SET deleted_at = now() WHERE id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect(fn () => $this->repository->findById($kal->id, $this->organizerId))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+it('reconstructs the full aggregate graph, including the invite token', function (): void {
+    $kal = KalMother::create(
+        files: FilesMother::of(FileMother::create()),
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+
+    $this->repository->create($kal);
+
+    $found = $this->repository->findById($kal->id, $this->organizerId);
+
+    expect($found->id->equals($kal->id))->toBeTrue()
+        ->and($found->organizerId->equals($kal->organizerId))->toBeTrue()
+        ->and($found->name->value())->toBe($kal->name->value())
+        ->and($found->inviteToken->equals($kal->inviteToken))->toBeTrue()
+        ->and($found->inviteToken->value())->not->toBe('')
+        ->and(array_map(fn ($locale) => $locale->value(), $found->locales->all()))
+            ->toEqualCanonicalizing(array_map(fn ($locale) => $locale->value(), $kal->locales->all()))
+        ->and($found->files->all())->toHaveCount(1)
+        ->and($found->files->all()[0]->fileName->value())->toBe($kal->files->all()[0]->fileName->value())
+        ->and($found->clues->all())->toHaveCount(1)
+        ->and($found->clues->all()[0]->id->equals($kal->clues->all()[0]->id))->toBeTrue()
+        ->and($found->clues->all()[0]->meeting->id->equals($kal->clues->all()[0]->meeting->id))->toBeTrue()
+        ->and($found->clues->all()[0]->file->fileName->value())->toBe($kal->clues->all()[0]->file->fileName->value())
+        // Una del KAL i una obligatòria de la pista: només la del KAL surt a `meetings`.
+        ->and($found->meetings->all())->toHaveCount(1)
+        ->and($found->meetings->all()[0]->id->equals($kal->meetings->all()[0]->id))->toBeTrue();
 });

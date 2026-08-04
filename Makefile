@@ -35,6 +35,16 @@ logs: ## Tail app logs (Monolog JSON on stderr). Errors only: make logs-errors
 logs-errors: ## Tail WARNING/ERROR/CRITICAL lines from the app container
 	@$(DOCKER_COMPOSE) logs -f app 2>&1 | grep --line-buffered -E '"level_name":"(WARNING|ERROR|CRITICAL)"'
 
+env ?= dev
+cache-clear: ## Clear the Symfony cache. Example: make cache-clear env=prod
+	@$(RUN) app php bin/console cache:clear --env=$(env)
+email ?= organizer@kal.local
+password ?= password
+signup ?= 1
+
+access-token: ## Supabase user JWT (needs `supabase start`). Defaults: organizer@kal.local / password / signup=1
+	@./scripts/fetch-access-token.sh "$(email)" "$(password)" $(if $(filter 1 true yes,$(signup)),--signup,)
+
 ##@ 🧪 Test
 test: run-pest ## Run the Pest test suite
 
@@ -43,14 +53,14 @@ run-pest: ## Run Pest
 run-arch: ## Run only the architecture tests (tests/Arch)
 	@$(RUN) app vendor/bin/pest tests/Arch
 run-tests-filter: ## Run Pest filtered by name. Example: make run-tests-filter p='some test name'
-	@$(RUN) app vendor/bin/pest --filter "$(p)"
+	@$(DOCKER_COMPOSE) run --rm pest vendor/bin/pest --filter "$(p)"
 run-tests-retry: ## Re-run only the tests that failed last time
-	@$(RUN) app vendor/bin/pest --retry --display-errors -v
+	@$(DOCKER_COMPOSE) run --rm pest vendor/bin/pest --retry --display-errors -v
 test-db: ## Run the tests that hit real Postgres (needs `supabase start`; NOT part of qa)
-	@$(RUN) app vendor/bin/pest -c phpunit.db.xml.dist
+	@$(DOCKER_COMPOSE) run --rm -e APP_ENV=test pest vendor/bin/pest -c phpunit.db.xml.dist
 
 ##@ 🎨 Quality assurance
-qa: run-phpstan run-cs-fixer test ## Run the full quality assurance suite
+qa: run-phpstan run-cs-fixer test run-arch ## Run the full quality assurance suite
 
 run-phpstan: ## Run PHPStan static analysis
 	@$(DOCKER_COMPOSE) run --rm phpstan

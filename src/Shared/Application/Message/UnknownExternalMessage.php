@@ -53,7 +53,7 @@ final readonly class UnknownExternalMessage implements ExternalMessageInterface
      */
     public static function name(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('unknown_external_message');
+        return NonEmptyStringValue::create('unknown_external_message');
     }
 
     /**
@@ -61,7 +61,7 @@ final readonly class UnknownExternalMessage implements ExternalMessageInterface
      */
     public static function version(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('1.0.0');
+        return NonEmptyStringValue::create('1.0.0');
     }
 
     /**
@@ -69,7 +69,7 @@ final readonly class UnknownExternalMessage implements ExternalMessageInterface
      */
     public static function boundedContext(): NonEmptyStringValue
     {
-        return new NonEmptyStringValue('external');
+        return NonEmptyStringValue::create('external');
     }
 
     /**

@@ -46,6 +46,19 @@ final class Meeting
         );
     }
 
+    /** @throws KalException */
+    public static function reconstitute(
+        UlidValue $id,
+        DateTime $scheduledAt,
+        HttpsUrl $url,
+        NonEmptyStringValue $title,
+        string $timezone,
+    ): self {
+        self::guardValidTimezone($timezone);
+
+        return new self($id, $scheduledAt, $url, $title, $timezone);
+    }
+
     /**
      * @throws KalException
      */

@@ -56,6 +56,39 @@ final class Clue
     }
 
     /**
+     * Rebuilds a clue already persisted, preserving its id and `updatedAt`
+     * instead of minting new ones as `create()` does.
+     *
+     * @throws KalException
+     */
+    public static function reconstitute(
+        UlidValue $id,
+        NonEmptyStringValue $name,
+        ?NonEmptyStringValue $description,
+        File $file,
+        Meeting $meeting,
+        Locale $locale,
+        DateTime $startsOn,
+        DateTime $endsOn,
+        DateTime $updatedAt,
+    ): self {
+        self::guardAgainstInvalidDateRange($startsOn, $endsOn);
+        self::guardMeetingWithinRange($meeting, $startsOn, $endsOn);
+
+        return new self(
+            $id,
+            $name,
+            $description,
+            $file,
+            $meeting,
+            $locale,
+            $startsOn,
+            $endsOn,
+            $updatedAt,
+        );
+    }
+
+    /**
      * @throws KalException
      */
     private static function guardAgainstInvalidDateRange(DateTime $startsOn, DateTime $endsOn): void

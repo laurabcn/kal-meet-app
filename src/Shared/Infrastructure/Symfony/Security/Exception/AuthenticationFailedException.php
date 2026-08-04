@@ -13,11 +13,19 @@ use Symfony\Component\Security\Core\Exception\AuthenticationException;
  * Symfony col·lapsa qualsevol fallada de l'autenticador `access_token` en una
  * `BadCredentialsException`: caducat i invàlid queden indistingibles. Les
  * subclasses d'aquí porten el codi i l'estat de la taula de §3.5 del spec, i
- * `SupabaseAuthenticationEntryPoint` és qui els converteix en `{"error": ...}`.
+ * `SupabaseAuthenticationEntryPoint` és qui els converteix en
+ * `{"error":…,"code":…}`.
  */
 abstract class AuthenticationFailedException extends AuthenticationException
 {
+    public function __construct(int $code = 0, ?\Throwable $previous = null)
+    {
+        parent::__construct($this->errorMessage(), $code, $previous);
+    }
+
     abstract public function errorCode(): string;
+
+    abstract public function errorMessage(): string;
 
     public function statusCode(): int
     {

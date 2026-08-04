@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\User\Domain\Exception\UserException;
-use App\User\Infrastructure\Persistence\DbalUserRepository;
+use App\User\Infrastructure\Persistence\Hydrator\UserHydrator;
+use App\User\Infrastructure\Persistence\UserRepository;
 use Doctrine\DBAL\DriverManager;
 use Tests\User\Domain\Mother\ExternalIdMother;
 use Tests\User\Infrastructure\Persistence\ProfilesFixture;
+
+beforeEach(function (): void {
+    $this->hydrator = new UserHydrator();
+});
 
 it('resolves the auth provider id to the internal ULID of the profile', function (): void {
     $connection = ProfilesFixture::connection();
     $internalId = UlidValue::generate()->value();
     ProfilesFixture::insert($connection, $internalId, 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
-    $repository = new DbalUserRepository($connection);
+    $repository = new UserRepository($connection, $this->hydrator);
 
     $user = $repository->findByExternalId(ExternalIdMother::fromString('f47ac10b-58cc-4372-a567-0e02b2c3d479'));
 
@@ -25,7 +30,7 @@ it('resolves the auth provider id to the internal ULID of the profile', function
 it('returns null when no profile matches, which is a normal outcome', function (): void {
     $connection = ProfilesFixture::connection();
     ProfilesFixture::insert($connection, UlidValue::generate()->value(), 'someone-else');
-    $repository = new DbalUserRepository($connection);
+    $repository = new UserRepository($connection, $this->hydrator);
 
     $user = $repository->findByExternalId(ExternalIdMother::fromString('f47ac10b-58cc-4372-a567-0e02b2c3d479'));
 
@@ -33,7 +38,7 @@ it('returns null when no profile matches, which is a normal outcome', function (
 });
 
 it('returns null on an empty profiles table', function (): void {
-    $repository = new DbalUserRepository(ProfilesFixture::connection());
+    $repository = new UserRepository(ProfilesFixture::connection(), $this->hydrator);
 
     expect($repository->findByExternalId(ExternalIdMother::random()))->toBeNull();
 });
@@ -44,7 +49,7 @@ it('picks the profile of the given auth provider id and no other', function (): 
     ProfilesFixture::insert($connection, UlidValue::generate()->value(), 'sub-1');
     ProfilesFixture::insert($connection, $wanted, 'sub-2');
     ProfilesFixture::insert($connection, UlidValue::generate()->value(), 'sub-3');
-    $repository = new DbalUserRepository($connection);
+    $repository = new UserRepository($connection, $this->hydrator);
 
     $user = $repository->findByExternalId(ExternalIdMother::fromString('sub-2'));
 
@@ -54,17 +59,20 @@ it('picks the profile of the given auth provider id and no other', function (): 
 it('fails with a code when the query cannot run', function (): void {
     // Connexió sense la taula `profiles`: un fallo de la BD no ha de sortir
     // com una excepció de Doctrine a través del port.
-    $repository = new DbalUserRepository(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]));
+    $repository = new UserRepository(
+        DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]),
+        $this->hydrator,
+    );
 
     expect(fn () => $repository->findByExternalId(ExternalIdMother::random()))
-        ->toThrow(UserException::class, 'user_persistence_failed');
+        ->toThrow(UserException::class, 'Failed to load the user profile.');
 });
 
 it('fails with a code when the stored profile id is not a ULID', function (): void {
     $connection = ProfilesFixture::connection();
     ProfilesFixture::insert($connection, 'not-a-ulid', 'sub-1');
-    $repository = new DbalUserRepository($connection);
+    $repository = new UserRepository($connection, $this->hydrator);
 
     expect(fn () => $repository->findByExternalId(ExternalIdMother::fromString('sub-1')))
-        ->toThrow(UserException::class, 'user_invalid_stored_profile_id');
+        ->toThrow(UserException::class, 'The stored profile id is invalid.');
 });

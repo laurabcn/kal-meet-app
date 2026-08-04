@@ -24,7 +24,7 @@
 
     <testsuites>
         <testsuite name="db">
-            <directory>tests/Kal/Infrastructure</directory>
+            <directory>tests/Kal/Infrastructure/Persistence</directory>
         </testsuite>
     </testsuites>
 
