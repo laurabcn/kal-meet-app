@@ -8,9 +8,10 @@ creació en memòria amb invariants de dates, locales i fitxers per idioma.
 
 Encara no hi ha camí d’escriptura persistit (repositori, command, migració,
 HTTP) ni els camps/comportaments mínims perquè una organitzadora pugui
-**crear un KAL usable** (convidar, tenir aula de debate, programar una
-trobada). Sense tancar aquest tall, el debate i la resta de l’MVP no tenen
-arrel estable.
+**crear un KAL usable** (convidar, programar una trobada). Sense tancar
+aquest tall, la resta de l’MVP no té arrel estable. L’aula de debate
+queda diferida fins que el xat entri a l’MVP (veure
+[`kal-debate.md`](kal-debate.md)).
 
 Aquest spec defineix què cal per donar per **completat** l’agregat Kal a
 l’MVP família (domini restant + primera vertical d’escriptura). El debate
@@ -21,11 +22,13 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 - Tancar el model de domini Kal necessari per crear un KAL i convidar
   participants (camps i invariants que falten respecte a `CLAUDE.md`).
 - Definir la primera operació d’escriptura: **CreateKal** (Application +
-  port de repositori + adaptador DBAL + migració mínima), en la mateixa
-  transacció que la fila d’aula de debate (1 `debate_room`).
+  port de repositori + adaptador DBAL + migració mínima). La fila
+  `debate_room` **no** es crea aquí: el xat és candidat MVP pendent de
+  validació; quan arribi, CreateKal (o una migració de backfill) crearà
+  l’aula pels KALs existents.
 - Deixar explícit què queda fora (PatternInfo ric, mutacions, soft delete
-  API, Participation com a flux propi) perquè el team-lead pugui partir
-  tasques sense reobrir abast.
+  API, Participation com a flux propi, aula de xat) perquè el team-lead
+  pugui partir tasques sense reobrir abast.
 
 ## Non-Goals
 
@@ -57,26 +60,26 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
   - Es poden crear amb el Kal o afegir-se després via mètode d’agregat
     `addMeeting` (domini); l’API d’afegir meeting pot ser tasca
     immediata o just després de CreateKal.
-- La creació del Kal **crea també 1 debate room** a persistència (no cal
-  modelar `DebateMessage` al Domain PHP; la room és un side-effect de
-  CreateKal / repositori). Detall a [`kal-debate.md`](kal-debate.md).
+- La creació del Kal **no** crea `debate_room`. Quan el xat entri a
+  l’MVP, caldrà insert al CreateKal **i** backfill dels KALs creats
+  sense aula. Detall a [`kal-debate.md`](kal-debate.md).
 
 ### Application / Infrastructure
 
 - Command `CreateKal` (o equivalent) amb dades necessàries per
-  `Kal::create` + generació d’`inviteToken` + insert de `debate_room`.
+  `Kal::create` + generació d’`inviteToken`.
 - Port `KalRepositoryInterface` amb `save(Kal): void` (o `add` que
   persisteix i no assumeix IDs de BD).
 - Adaptador DBAL: SQL directe, transacció explícita
-  (`kals` + fills mínims + `debate_rooms`).
+  (`kals` + fills mínims; sense `debate_rooms` en aquest tall).
 - ULIDs generats a l’aplicació/domini, mai a Postgres (excepció
   `profiles` ja documentada).
 
-### Fora d’aquest behavior (però prerequisit del debate)
+### Fora d’aquest behavior (prerequisit del debate)
 
 - Les RLS `is_kal_member` / `is_kal_organizer` i el flux d’unirse amb
   token queden en tasques de Participation; el CreateKal només deixa el
-  token i l’aula a punt.
+  token. L’aula es crea quan el xat es cablegi.
 
 ## Inputs
 
@@ -98,7 +101,6 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 | Output | Consumer | Format |
 |--------|----------|--------|
 | Kal persistit | FE / queries posteriors | id + camps + inviteToken |
-| debate_room (1) | FE xat | room id + kal_id |
 | Domain errors | API / FE | codis (`kal_*`) |
 
 ## Scenarios
@@ -107,12 +109,12 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 
 - GIVEN una organitzadora autenticada  
   WHEN envia CreateKal amb name, startsOn i ≥1 locale  
-  THEN es persisteix el Kal, es genera `inviteToken`, es crea 1
-  `debate_room`, i es retorna l’id del Kal.
+  THEN es persisteix el Kal, es genera `inviteToken`, i es retorna
+  l’id del Kal (sense fila a `debate_rooms`).
 
 - GIVEN CreateKal amb una Meeting (url https + scheduledAt)  
   WHEN es desa  
-  THEN el Kal queda amb aquesta meeting i la room de debate.
+  THEN el Kal queda amb aquesta meeting.
 
 ### Edge / Error paths
 
@@ -125,7 +127,7 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
   THEN error de domini existent (`kal_*` de locale), cap persistència
   parcial.
 
-- GIVEN fallo a mig insert (p.ex. debate_room)  
+- GIVEN fallo a mig insert (p.ex. `kal_locales`)  
   WHEN CreateKal  
   THEN rollback de tota la transacció.
 
@@ -136,7 +138,7 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 - [ ] `Meeting` modelat al Domini (entitat + col·lecció) amb invariants
       mínimes (url https, timezone per defecte).
 - [ ] Existeix `KalRepositoryInterface` + adaptador DBAL amb transacció
-      que desa Kal (+ meetings si n’hi ha) i exactament 1 `debate_room`.
+      que desa Kal (+ meetings si n’hi ha), **sense** `debate_room`.
 - [ ] Command/handler CreateKal cobert amb test (unitari de handler amb
       repo fake, i/o integració local si l’entorn Supabase local està
       disponible).
@@ -166,25 +168,26 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 
 ## Trade-offs
 
-- Chosen: Completar Domini mínim + CreateKal amb side-effect de
-  `debate_room`, sense modelar missatges al DDD PHP.
-- Benefit: Una sola transacció deixa el KAL “xatejable” quan arribi el FE;
-  menys complexitat al Domini.
-- Cost: La room no és una entitat rica al Domini; canvis de producte del
-  xat es fan sobretot a SQL/RLS/FE.
+- Chosen: Completar Domini mínim + CreateKal **sense** side-effect de
+  `debate_room`; el xat es cableja quan es validi com a MVP.
+- Benefit: CreateKal no arrossega un producte encara no decidit; menys
+  files òrfenes i menys acoblament.
+- Cost: Quan el xat arribi cal insert al create **i** backfill dels KALs
+  ja creats sense aula.
 
 ## Risks and assumptions
 
 - Assumption: Les taules `kals` / relacionades i helpers RLS
   (`is_kal_member`, …) existeixen o es creen a la mateixa entrega de
   migració que CreateKal; si encara no hi ha migracions al repo, la
-  primera tasca és l’esquema base Kal + debate_rooms.
+  primera tasca és l’esquema base Kal (debate_rooms pot existir a
+  l’esquema sense omplir-se al create).
 - Assumption: `Files`/`Locales` actuals al Domini són la base acceptada
   (més rics que [`kal-aggregate-root.md`](kal-aggregate-root.md)); no es
   reverteix a `coverPath`-only.
-- Risk: Acoblar CreateKal a debate_room abans que Participation existeixi
-  → l’aula existeix però ningú hi pot escriure fins al join; acceptable
-  (ordre: CreateKal → Participation → FE xat).
+- Risk: KALs creats abans del cablejat del xat no tenen `debate_room` →
+  cal backfill quan el xat entri (ordre: CreateKal → Participation →
+  FE xat + aula).
 - Risk: Spec de Meeting vs “només URL a CreateKal” — si es vol encara més
   prim, Meeting es pot ajornar a la tasca just després; P1 obert.
 
@@ -200,7 +203,7 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 
 - Tests de Domini existents segueixen verds; nous tests per
   `inviteToken` i `Meeting`.
-- Test de repositori/handler: després de CreateKal, 1 fila kal + 1 fila
-  debate_room (integració) o assert de crides en fake.
+- Test de repositori/handler: després de CreateKal, 1 fila kal (integració)
+  o assert de crides en fake; **cap** fila `debate_rooms`.
 - Revisió: cap dependència Domain → Infrastructure; arch tests
   `App\Kal\Domain` coberts.

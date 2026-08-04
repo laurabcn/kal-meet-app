@@ -44,8 +44,10 @@ sense construir un servidor de sockets ni allotjar vídeo.
 - **Lectura/escriptura de missatges:** frontend Vue (TypeScript) →
   Supabase (`supabase-js`) amb JWT d’usuària + RLS.
 - **En viu:** Supabase Realtime sobre `debate_messages`.
-- **Creació de l’aula:** backend PHP al `CreateKal` (1 `debate_room` a la
-  mateixa transacció). Veure [`kal-aggregate-mvp.md`](kal-aggregate-mvp.md).
+- **Creació de l’aula:** diferida. Avui `CreateKal` **no** inserta
+  `debate_room` (xat candidat MVP, pendent de validació). Quan el xat
+  es cablegi: insert al CreateKal + backfill dels KALs existents.
+  Veure [`kal-aggregate-mvp.md`](kal-aggregate-mvp.md).
 - **Imatges de missatge:** upload al bucket privat (p.ex. `kal-photos`,
   path tipus `{kal_id}/debat/{message_id}.webp`), compressió al client;
   el missatge guarda `image_path` (o equivalent).
@@ -178,7 +180,8 @@ Almenys un de `body` / `image_path` no buit.
 - Dues sessions membre: text + imatge en viu.
 - Tercera sessió no membre: sense lectura.
 - Hide: missatge desapareix per membres.
-- CreateKal: assert 1 `debate_room`.
+- Quan el xat es cablegi: CreateKal assert 1 `debate_room` + backfill
+  dels KALs creats sense aula.
 - Prova manual “directe”: embed/enllaç + pregunta al debate a la mateixa
   pantalla.
 
