@@ -112,6 +112,11 @@ final class InvalidArgumentException extends \InvalidArgumentException
         return new self('value_not_a_string', 'The value is not a string');
     }
 
+    public static function notAnAuthenticatedUser(): self
+    {
+        return new self('not_an_authenticated_user', 'The value is not an AuthenticatedUser');
+    }
+
     public static function authIdentityIncomplete(): self
     {
         return new self('auth_identity_incomplete', 'The authenticated identity is incomplete.');
