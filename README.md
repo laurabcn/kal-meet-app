@@ -86,6 +86,19 @@ get a number that is simply wrong:
 So treat `coverage-hermetic` as a quick local signal only, and never as the figure
 to report or act on — chasing the 0% would mean writing tests that already exist.
 
+**What is excluded, and when to stop excluding it.** `src/Shared` ships a
+messaging kernel built for asynchronous, multi-service work: transport
+serializers, an external-message bus, a domain-event bus. The MVP is a
+synchronous monolith and never starts any of it — `messenger.yaml` declares no
+transports, nothing implements `Storable*`, and `recordEvent()` is called
+nowhere. That code is kept (email reminders and the chat will need parts of it),
+but while it sleeps it drags the figure down and buries the gaps in code that
+does run. Both phpunit configs exclude it, and **every exclusion states the
+event that should remove it** — a doctrine transport appearing, a handler
+publishing a domain event, an aggregate typing one of the spare value objects.
+Keep the two config files in step: `make coverage` merges both runs, so an
+exclusion in only one of them has no effect.
+
 `make coverage` is **not** part of `make qa`. It needs `supabase start`, and the
 whole point of `qa` is that it stays hermetic and runs with nothing else up. It
 sits alongside `test-db`: run it when you want the number, not on every change.

@@ -28,9 +28,26 @@
         </testsuite>
     </testsuites>
 
+    <!--
+        Les MATEIXES exclusions que `phpunit.xml.dist` (allà hi ha el perquè de
+        cadascuna). `make coverage` fusiona les dues execucions amb phpcov i
+        cada .cov només porta el que la seva config ha analitzat: si divergeixen,
+        el resultat fusionat torna a comptar el que l'altra exclou.
+    -->
     <source>
         <include>
             <directory>src</directory>
         </include>
+        <exclude>
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Serializer</directory>
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Factory</directory>
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Stamp</directory>
+            <directory>src/Shared/Application/Message</directory>
+            <file>src/Shared/Infrastructure/Symfony/Bus/SymfonyDomainEventBus.php</file>
+            <file>src/Shared/Infrastructure/Symfony/Bus/SymfonyExternalMessageBus.php</file>
+            <file>src/Shared/Domain/ValueObject/BooleanValue.php</file>
+            <file>src/Shared/Domain/ValueObject/PositiveIntegerValue.php</file>
+            <file>src/Kal/Domain/FileUploadStatus.php</file>
+        </exclude>
     </source>
 </phpunit>

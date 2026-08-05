@@ -24,9 +24,53 @@
         </testsuite>
     </testsuites>
 
+    <!--
+        Només `src`: mai tests ni config. (Interfícies i subclasses buides com
+        `UserId` no cal excloure-les: PHPUnit ja no compta cap fitxer sense
+        línies executables.)
+
+        El que s'exclou aquí és codi VIU però encara no exercitat: el nucli de
+        missatgeria asíncrona que el projecte porta de sèrie i que l'MVP, que és
+        un monòlit síncron, no arrenca. No s'esborra perquè s'ha de fer servir
+        (recordatoris per email, xat després), però mentre dorm enfonsa el
+        percentatge i amaga els forats del codi que sí que corre — que és per al
+        que serveix el número.
+
+        CADA EXCLUSIÓ DIU QUÈ LA TREU. Quan passi, treu-la.
+    -->
     <source>
         <include>
             <directory>src</directory>
         </include>
+        <exclude>
+            <!--
+                Serialització cap a un transport. `config/packages/messenger.yaml`
+                no en declara cap: tot va sync i en procés, i aquestes classes
+                només es referencien entre elles.
+                TREU-HO QUAN: hi hagi un transport doctrine a messenger.yaml.
+            -->
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Serializer</directory>
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Factory</directory>
+            <directory>src/Shared/Infrastructure/Symfony/Bus/Stamp</directory>
+            <!--
+                Missatges que arriben d'un transport i no es poden descodificar.
+                TREU-HO QUAN: es consumeixin missatges d'un altre sistema.
+            -->
+            <directory>src/Shared/Application/Message</directory>
+            <!--
+                Dos dels quatre busos: ningú despatxa events de domini
+                (`recordEvent()` no es crida enlloc) ni missatges externs.
+                TREU-HO QUAN: un handler publiqui un DomainEvent.
+            -->
+            <file>src/Shared/Infrastructure/Symfony/Bus/SymfonyDomainEventBus.php</file>
+            <file>src/Shared/Infrastructure/Symfony/Bus/SymfonyExternalMessageBus.php</file>
+            <!--
+                VOs del kernel que cap domini tipa encara.
+                TREU-HO QUAN: algun agregat els faci servir.
+            -->
+            <file>src/Shared/Domain/ValueObject/BooleanValue.php</file>
+            <file>src/Shared/Domain/ValueObject/PositiveIntegerValue.php</file>
+            <file>src/Kal/Domain/FileUploadStatus.php</file>
+        </exclude>
     </source>
 </phpunit>
