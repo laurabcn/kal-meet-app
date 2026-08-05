@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "KAL Meet App — Auth & Kal",
-    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal` and `GET /kal/{id}`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment.\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** first so `kalId` is set for the GET happy path.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` must **not** appear in the body — it comes from the token.",
+    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}` and `POST /kal/participation`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set for participation.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` must **not** appear in the body — it comes from the token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,7 +15,15 @@
       "value": ""
     },
     {
+      "key": "participantAccessToken",
+      "value": ""
+    },
+    {
       "key": "kalId",
+      "value": ""
+    },
+    {
+      "key": "inviteToken",
       "value": ""
     }
   ],
@@ -363,6 +371,7 @@
                   "  pm.expect(data.id).to.eql(pm.collectionVariables.get('kalId'));",
                   "  pm.expect(data.inviteToken).to.be.a('string').and.not.empty;",
                   "  pm.expect(data).to.not.have.property('organizerId');",
+                  "  pm.collectionVariables.set('inviteToken', data.inviteToken);",
                   "});"
                 ]
               }
@@ -475,6 +484,186 @@
             "header": [],
             "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
             "description": "Unknown id (or not organizer / soft-deleted) → 404 `Kal not found.`. Same body for all three cases."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/participation — create (participant token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('inviteToken') && !pm.environment.get('inviteToken')) {",
+                  "  console.warn('Run GET /kal/{id} first (or set inviteToken) before joining.');",
+                  "}",
+                  "if (!pm.collectionVariables.get('participantAccessToken') && !pm.environment.get('participantAccessToken')) {",
+                  "  console.warn('Set participantAccessToken to a JWT of a user who is NOT the organizer.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('empty JSON body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('{}');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{participantAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kalId\": \"{{kalId}}\",\n  \"inviteToken\": \"{{inviteToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/participation",
+            "description": "Happy path join. Uses `kalId` + `inviteToken` from create/GET. Must use `participantAccessToken` (a different profile than the organizer); the organizer joining their own KAL is 409."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/participation — organizer already member (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('kal_already_member', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.eql('User is already a member of this kal.');",
+                  "  pm.expect(body.code).to.eql('kal_already_member');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kalId\": \"{{kalId}}\",\n  \"inviteToken\": \"{{inviteToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/participation",
+            "description": "Organizer (`accessToken`) cannot join their own KAL → 409 `kal_already_member`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/participation — bad invite token (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Kal not found.', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.eql('Kal not found.');",
+                  "  pm.expect(body.code).to.eql('kal_not_found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{participantAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kalId\": \"{{kalId}}\",\n  \"inviteToken\": \"deadbeefdeadbeefdeadbeefdeadbeef\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/participation",
+            "description": "Wrong invite token for an existing kalId → same 404 as missing kal (`kal_not_found`)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/participation — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kalId\": \"{{kalId}}\",\n  \"inviteToken\": \"{{inviteToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/participation",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
           },
           "response": []
         }

@@ -1,5 +1,12 @@
 # Spec: Kal Debate (classroom chat)
 
+> Status: **RESOLT** (2026-08-04). Fitxer tancat, es conserva com a històric de
+> les decisions. Els noms de classe i les rutes que cita són els d’aquell
+> moment i **no** es mantenen al dia.
+>
+> Tancar l’spec no tanca la decisió de producte: el xat segueix sent **candidat
+> a l’MVP**, pendent de les entrevistes (veure CLAUDE.md, «Funcionalitats MVP»).
+
 ## Naming (EN)
 
 | Català (producte) | Anglès (codi / spec) | Notes |

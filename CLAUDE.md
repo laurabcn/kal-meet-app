@@ -76,7 +76,12 @@ Key conventions to know before touching this code:
 
 Pest arch tests are the enforcement mechanism for the layering rules above, and are templates meant to be extended per bounded context (not just left as-is).
 
-Both files currently check against the bare `App\Domain`/`App\Application`/`App\Infrastructure` namespaces and pass vacuously until real domain code exists — when adding a bounded context (e.g. `App\<Context>\Domain`), extend these checks rather than assuming they already cover it.
+The rest of the suite is split by tier under `tests/`, still mirroring the code under test:
+
+- `tests/Unit/` — domain, handlers, doubles, adapters without Postgres
+- `tests/Feature/` — HTTP / firewall (kernel boot)
+- `tests/Integration/` — Postgres real (`make test-db` / `phpunit.db.xml.dist`)
+- `tests/Arch/` — layering and conventions
 
 ### Static analysis and style — estat actual
 
@@ -183,7 +188,7 @@ pinnedMessage · inviteToken
   (sizes, finishedMeasurements, yardage, yarnsShownIn, needles, hook, notions[],
   gauge, techniques[] — tots opcionals), versions traduïdes del PDF (locale +
   patternPath) i imatges (storagePath + position). Es completa progressivament
-  amb `PATCH`. Kal i fitxa es creen a la MATEIXA transacció al `CreateKalHandler`
+  amb `PATCH`. Kal i fitxa es creen a la MATEIXA transacció al `CreateKalCommandHandler`
   (sense event ni listener). **Dissenyat per esdevenir bounded context propi a
   la Fase Patterns** (venda + comissions + discoverable); l'esquema (mateixes
   taules i columnes) ja ho preveu, l'extracció serà neta

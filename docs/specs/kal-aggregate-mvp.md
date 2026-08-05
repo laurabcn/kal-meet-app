@@ -1,5 +1,10 @@
 # Spec: Kal aggregate — completar l’MVP de domini (+ primera escriptura)
 
+> Status: **RESOLT** (2026-08-04). Fitxer tancat, es conserva com a històric de
+> les decisions. Els noms de classe i les rutes que cita són els d’aquell
+> moment i **no** es mantenen al dia — no els facis servir com a referència del
+> codi actual.
+
 ## Problem
 
 Ja existeix la capa `Domain` de l’agregat `Kal` (`App\Kal\Domain`: `Kal`,

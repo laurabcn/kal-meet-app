@@ -1,6 +1,12 @@
 # Spec: KAL-002 test suite (functional · acceptance · e2e)
 
-> Status: **COMPLETE — all 13 sections written.** 6 open questions in §13 need the
+> Status: **RESOLT** (2026-08-04). Fitxer tancat, es conserva com a històric.
+> La suite es va escriure i després es va reorganitzar per tiers
+> (`tests/Unit` · `tests/Feature` · `tests/Integration` · `tests/Arch`), o sigui
+> que les rutes i els noms de classe d'aquí sota són els d'aquell moment i
+> **no** es mantenen al dia.
+>
+> Estat original: **COMPLETE — all 13 sections written.** 6 open questions in §13 need the
 > architect's call; none blocks Increment A (§8.1).
 > Scope: branch `KAL-002` (the `CreateKal` write flow + the `Kal` aggregate,
 > value objects and `KalRepository` already written on this branch).

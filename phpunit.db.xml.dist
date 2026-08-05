@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Suite `db`: els únics tests que toquen Postgres de veritat, contra la
-    Supabase local amb l'esquema real de supabase/migrations/. Config a part
+    Suite `integration`: els únics tests que toquen Postgres de veritat, contra
+    la Supabase local amb l'esquema real de supabase/migrations/. Config a part
     perquè `make qa` segueixi sent hermètic i no depengui de tenir la BD
     aixecada; aquests es corren amb `make test-db` quan es toca persistència.
 
@@ -23,8 +23,8 @@
     </php>
 
     <testsuites>
-        <testsuite name="db">
-            <directory>tests/Kal/Infrastructure/Persistence</directory>
+        <testsuite name="integration">
+            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
 

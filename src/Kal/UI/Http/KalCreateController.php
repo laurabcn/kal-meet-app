@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Kal\UI\Http;
 
-use App\Kal\Application\Command\CreateKal\CreateKalCommand;
+use App\Kal\Application\Command\Kal\CreateKalCommand;
 use App\Shared\Application\Command\CommandBusInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
