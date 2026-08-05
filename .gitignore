@@ -22,4 +22,3 @@
 # La resta de supabase/ (config.toml, migrations/) va versionada a propòsit.
 /supabase/.temp/
 /supabase/.branches/
-.claude
