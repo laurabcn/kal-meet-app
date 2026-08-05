@@ -57,9 +57,38 @@ make logs-errors       # Only WARNING / ERROR / CRITICAL
 make up          # start API (http://localhost:8080; override with HTTP_PORT=…)
 make test        # run Pest (no DB)
 make test-db     # Pest against local Supabase (needs `supabase start`)
+make coverage    # test coverage (needs `supabase start` — see below)
 make run-arch    # only the architecture tests (tests/Arch)
 make bash        # interactive shell in the app container
 ```
+
+### Test coverage
+
+```bash
+make coverage            # the real number; needs `supabase start`
+make coverage-hermetic   # fast, no DB — but see the warning below
+```
+
+The HTML report lands in `var/coverage/index.html` (already gitignored). Coverage
+runs on PCOV, not Xdebug: this is only about measuring, and PCOV is much faster.
+It ships **disabled** (`pcov.enabled=0`) so it never slows down a normal
+`make test`; the coverage targets switch it on for their own run.
+
+**`make coverage` runs both test suites and merges the results, and that matters.**
+The DBAL repositories are only exercised by the Postgres tests, which live in a
+separate config (`phpunit.db.xml.dist`). Measure the hermetic suite alone and you
+get a number that is simply wrong:
+
+| | `make coverage-hermetic` | `make coverage` |
+|---|---|---|
+| `KalRepository` | 0.0% | 98.78% |
+
+So treat `coverage-hermetic` as a quick local signal only, and never as the figure
+to report or act on — chasing the 0% would mean writing tests that already exist.
+
+`make coverage` is **not** part of `make qa`. It needs `supabase start`, and the
+whole point of `qa` is that it stays hermetic and runs with nothing else up. It
+sits alongside `test-db`: run it when you want the number, not on every change.
 
 ## Manual API smoke (Postman)
 

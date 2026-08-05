@@ -14,8 +14,11 @@ help: ## Display this help
 
 ##@ 🐋 Setup
 setup: build composer-install ## Build the image and install dependencies
-build: ## Build (or rebuild) the app image
-	@$(DOCKER_COMPOSE) build app
+build: ## Build (or rebuild) all images
+	# Tots els serveis, no només `app`: pest/phpstan/cs-fixer surten del mateix
+	# Dockerfile però tenen imatge pròpia, i construir-ne una sola deixa les
+	# altres amb una versió antiga de PHP o sense les extensions noves.
+	@$(DOCKER_COMPOSE) build
 
 composer-install: ## Run composer install
 	@$(RUN) app composer install
@@ -58,6 +61,26 @@ run-tests-retry: ## Re-run only the tests that failed last time
 	@$(DOCKER_COMPOSE) run --rm pest vendor/bin/pest --retry --display-errors -v
 test-db: ## Run the tests that hit real Postgres (needs `supabase start`; NOT part of qa)
 	@$(DOCKER_COMPOSE) run --rm -e APP_ENV=test pest vendor/bin/pest -c phpunit.db.xml.dist
+
+# La cobertura NO pot sortir d'una sola execució: els repositoris DBAL només els
+# toquen els tests contra Postgres, que corren amb la seva pròpia config. Mesurar
+# només la suite hermètica els donaria per no coberts i el número seria mentida.
+# Per això es genera un .cov per execució i es fusionen amb phpcov.
+#
+# Conseqüència: `coverage` demana `supabase start`, o sigui que NO pot entrar mai
+# a `make qa` — trencaria l'hermetisme. Va a part, com `test-db`.
+coverage: ## Cobertura real (hermètica + Postgres, fusionades). Needs `supabase start`
+	@rm -rf var/cov var/coverage
+	@$(DOCKER_COMPOSE) run --rm pest php -d pcov.enabled=1 vendor/bin/pest \
+		--coverage-php=var/cov/hermetic.cov
+	@$(DOCKER_COMPOSE) run --rm -e APP_ENV=test pest php -d pcov.enabled=1 vendor/bin/pest \
+		-c phpunit.db.xml.dist --coverage-php=var/cov/integration.cov
+	@$(DOCKER_COMPOSE) run --rm pest php -d pcov.enabled=1 vendor/bin/phpcov merge var/cov \
+		--html var/coverage --text php://stdout
+	@echo "\nInforme HTML: var/coverage/index.html"
+
+coverage-hermetic: ## Cobertura només de la suite hermètica (sense Postgres; el número serà baix als repositoris)
+	@$(DOCKER_COMPOSE) run --rm pest php -d pcov.enabled=1 vendor/bin/pest --coverage
 
 ##@ 🎨 Quality assurance
 qa: run-phpstan run-cs-fixer test run-arch ## Run the full quality assurance suite
