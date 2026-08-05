@@ -28,7 +28,9 @@ comment on column participations.user_id is 'Internal profiles.id (ULID), never 
 
 alter table participations enable row level security;
 
--- Members can read their own participation rows for a KAL they belong to.
+-- Members can read every participation row of a KAL they belong to: les
+-- participants es veuen entre elles (la identitat que mostren la decideix
+-- l'spec del xat, no aquesta taula).
 drop policy if exists participations_select_member on participations;
 create policy participations_select_member on participations
     for select using (is_kal_member(kal_id));

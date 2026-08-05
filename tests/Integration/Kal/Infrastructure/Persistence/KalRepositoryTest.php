@@ -251,6 +251,8 @@ it('throws kal_not_found from getActiveById when the kal is soft-deleted', funct
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 });
 
+// Qui pot apuntar-s'hi ho decideix `JoinPolicy`, no el repositori: aquí només
+// es prova que el token obre el KAL correcte (veure JoinPolicyTest).
 it('loads a kal by id when the invite token matches', function (): void {
     $kal = KalMother::create(organizerId: $this->organizerId);
     $this->repository->create($kal);

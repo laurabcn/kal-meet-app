@@ -32,6 +32,8 @@ final class InMemoryParticipationRepository implements ParticipationRepositoryIn
             throw $this->failure;
         }
 
+        // Mateix repartiment que el repositori real: aquí només hi arriba la
+        // cursa, perquè el cas normal el talla l'`exists()` del handler.
         $key = self::key($participation->kalId, $participation->userId);
         if (isset($this->participations[$key])) {
             throw KalAlreadyMemberException::create();
@@ -40,8 +42,13 @@ final class InMemoryParticipationRepository implements ParticipationRepositoryIn
         $this->participations[$key] = $participation;
     }
 
+    /** @throws KalException */
     public function exists(UlidValue $kalId, UlidValue $userId): bool
     {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
         return isset($this->participations[self::key($kalId, $userId)]);
     }
 

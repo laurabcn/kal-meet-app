@@ -12,17 +12,6 @@ use Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository;
 use Tests\Unit\Kal\Infrastructure\Persistence\InMemoryParticipationRepository;
 use Tests\Unit\Shared\Infrastructure\Symfony\Security\StubTokenHandler;
 
-/**
- * @return array<string, string>
- */
-function joinAuthHeaders(): array
-{
-    return [
-        'CONTENT_TYPE' => 'application/json',
-        'HTTP_AUTHORIZATION' => 'Bearer '.StubTokenHandler::TOKEN,
-    ];
-}
-
 it('joins a kal and answers 201 carrying no data', function (): void {
     $client = static::createClient();
     /** @var InMemoryKalRepository $kalRepository */
@@ -36,7 +25,7 @@ it('joins a kal and answers 201 carrying no data', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => $kal->id->value(),
             'inviteToken' => $kal->inviteToken->value(),
@@ -63,7 +52,7 @@ it('answers 409 when the caller is the organizer', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => $kal->id->value(),
             'inviteToken' => $kal->inviteToken->value(),
@@ -95,7 +84,7 @@ it('answers 409 when the caller is already a member', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => $kal->id->value(),
             'inviteToken' => $kal->inviteToken->value(),
@@ -105,7 +94,8 @@ it('answers 409 when the caller is already a member', function (): void {
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CONFLICT)
         ->and($client->getResponse()->getContent())->toBe(
             '{"error":"User is already a member of this kal.","code":"kal_already_member"}',
-        );
+        )
+        ->and($participationRepository->all())->toHaveCount(1);
 });
 
 it('answers 404 when the kal does not exist', function (): void {
@@ -114,7 +104,7 @@ it('answers 404 when the kal does not exist', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => '01J5M6XQBR4GTYHN8KZXP0F1W9',
             'inviteToken' => 'deadbeefdeadbeefdeadbeefdeadbeef',
@@ -137,7 +127,7 @@ it('answers 404 when the kal is soft-deleted', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => $kal->id->value(),
             'inviteToken' => $kal->inviteToken->value(),
@@ -159,7 +149,7 @@ it('answers 404 when the invite token does not match', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => $kal->id->value(),
             'inviteToken' => 'deadbeefdeadbeefdeadbeefdeadbeef',
@@ -173,7 +163,7 @@ it('answers 404 when the invite token does not match', function (): void {
 it('answers 400 when the body is invalid', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal/participation', server: joinAuthHeaders(), content: '{}');
+    $client->request('POST', '/kal/participation', server: apiJsonHeaders(), content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe(
@@ -184,7 +174,7 @@ it('answers 400 when the body is invalid', function (): void {
 it('answers 400 when the body is not json', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal/participation', server: joinAuthHeaders(), content: 'not json at all');
+    $client->request('POST', '/kal/participation', server: apiJsonHeaders(), content: 'not json at all');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe(
@@ -198,7 +188,7 @@ it('answers 400 when kalId is not a ulid', function (): void {
     $client->request(
         'POST',
         '/kal/participation',
-        server: joinAuthHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode([
             'kalId' => 'not-a-ulid',
             'inviteToken' => 'deadbeefdeadbeefdeadbeefdeadbeef',
@@ -224,5 +214,8 @@ it('answers 401 without an authorization header', function (): void {
         ]),
     );
 
-    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED);
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED)
+        ->and($client->getResponse()->getContent())->toBe(
+            '{"error":"Authentication token is missing.","code":"auth_token_missing"}',
+        );
 });

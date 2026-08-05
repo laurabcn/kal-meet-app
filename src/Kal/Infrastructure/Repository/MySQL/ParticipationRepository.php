@@ -10,7 +10,6 @@ use App\Kal\Domain\Participation;
 use App\Kal\Domain\Repository\ParticipationRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
-use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 final readonly class ParticipationRepository implements ParticipationRepositoryInterface
@@ -23,46 +22,45 @@ final readonly class ParticipationRepository implements ParticipationRepositoryI
     }
 
     /**
-     * @throws Exception
      * @throws KalAlreadyMemberException
      * @throws KalException
      */
     public function create(Participation $participation): void
     {
-        $connection = $this->repository->connection();
-
-        if ($this->exists($participation->kalId, $participation->userId)) {
-            throw KalAlreadyMemberException::create();
-        }
-
         try {
-            $connection->insert(self::TABLE_NAME, [
+            $this->repository->connection()->insert(self::TABLE_NAME, [
                 'id' => $participation->id->value(),
                 'kal_id' => $participation->kalId->value(),
                 'user_id' => $participation->userId->value(),
                 'joined_at' => $participation->joinedAt->value(),
             ]);
         } catch (UniqueConstraintViolationException) {
+            // Xarxa per a la cursa: dues peticions simultànies passen totes dues
+            // l'`exists()` del handler i només una guanya l'índex únic.
             throw KalAlreadyMemberException::create();
         } catch (\Throwable $e) {
             throw KalException::persistenceFailed($e);
         }
     }
 
-    /** @throws Exception */
+    /** @throws KalException */
     public function exists(UlidValue $kalId, UlidValue $userId): bool
     {
-        $id = $this->repository->connection()
-            ->createQueryBuilder()
-            ->select('id')
-            ->from(self::TABLE_NAME)
-            ->where('kal_id = :kalId')
-            ->andWhere('user_id = :userId')
-            ->setParameter('kalId', $kalId->value())
-            ->setParameter('userId', $userId->value())
-            ->setMaxResults(1)
-            ->executeQuery()
-            ->fetchOne();
+        try {
+            $id = $this->repository->connection()
+                ->createQueryBuilder()
+                ->select('id')
+                ->from(self::TABLE_NAME)
+                ->where('kal_id = :kalId')
+                ->andWhere('user_id = :userId')
+                ->setParameter('kalId', $kalId->value())
+                ->setParameter('userId', $userId->value())
+                ->setMaxResults(1)
+                ->executeQuery()
+                ->fetchOne();
+        } catch (\Throwable $e) {
+            throw KalException::persistenceFailed($e);
+        }
 
         return false !== $id && null !== $id;
     }

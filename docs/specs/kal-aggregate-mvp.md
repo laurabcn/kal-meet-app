@@ -1,5 +1,10 @@
 # Spec: Kal aggregate — completar l’MVP de domini (+ primera escriptura)
 
+> Status: **RESOLT** (2026-08-04). Fitxer tancat, es conserva com a històric de
+> les decisions. Els noms de classe i les rutes que cita són els d’aquell
+> moment i **no** es mantenen al dia — no els facis servir com a referència del
+> codi actual.
+
 ## Problem
 
 Ja existeix la capa `Domain` de l’agregat `Kal` (`App\Kal\Domain`: `Kal`,
@@ -66,7 +71,7 @@ detallat viu a [`kal-debate.md`](kal-debate.md).
 
 ### Application / Infrastructure
 
-- Command `Kal` (o equivalent) amb dades necessàries per
+- Command `CreateKal` (o equivalent) amb dades necessàries per
   `Kal::create` + generació d’`inviteToken`.
 - Port `KalRepositoryInterface` amb `save(Kal): void` (o `add` que
   persisteix i no assumeix IDs de BD).

@@ -1,8 +1,14 @@
 # Spec: KAL-002 test suite (functional · acceptance · e2e)
 
-> Status: **COMPLETE — all 13 sections written.** 6 open questions in §13 need the
+> Status: **RESOLT** (2026-08-04). Fitxer tancat, es conserva com a històric.
+> La suite es va escriure i després es va reorganitzar per tiers
+> (`tests/Unit` · `tests/Feature` · `tests/Integration` · `tests/Arch`), o sigui
+> que les rutes i els noms de classe d'aquí sota són els d'aquell moment i
+> **no** es mantenen al dia.
+>
+> Estat original: **COMPLETE — all 13 sections written.** 6 open questions in §13 need the
 > architect's call; none blocks Increment A (§8.1).
-> Scope: branch `KAL-002` (the `Kal` write flow + the `Kal` aggregate,
+> Scope: branch `KAL-002` (the `CreateKal` write flow + the `Kal` aggregate,
 > value objects and `KalRepository` already written on this branch).
 > This is a **test spec**: it defines which tests must exist, at which layer,
 > with which scenarios and acceptance criteria — it is a work order for writing
@@ -18,7 +24,7 @@ KAL. The code already on the branch is **unevenly tested**:
 - **Domain** (`src/Kal/Domain`) — well covered by fast unit tests with Object
   Mothers (`KalTest`, `MeetingTest`, `ClueTest`, `LocalesTest`, `FileSizeTest`,
   plus `Shared` VO tests).
-- **Application** (`CreateKalCommandHandler`) — covered by `CreateKalHandlerTest`, but
+- **Application** (`CreateKalHandler`) — covered by `CreateKalHandlerTest`, but
   only against an **in-memory** repository double (`InMemoryKalRepository`). The
   handler's orchestration is exercised; the real SQL path is not.
 - **Infrastructure** (`KalRepository`) — **zero tests**. The real SQL writes
@@ -34,7 +40,7 @@ will really do it** (HTTP request → response), and the handler's wiring throug
 the real command bus is unproven.
 
 This spec closes those gaps by defining a **three-tier, fully in-memory** test
-suite for the `Kal` flow. **Decision (architect):** the whole suite is
+suite for the `CreateKal` flow. **Decision (architect):** the whole suite is
 hermetic — no external database. The real SQL path (`KalRepository`) is
 **deliberately left untested** to keep the suite fast and free of any Supabase
 dependency; this is an accepted trade-off, recorded in §11 and §12, not a gap
@@ -46,7 +52,7 @@ coverage.
 
 ### Goals
 
-- Define three test tiers for the `Kal` flow, with a **precise, repo-
+- Define three test tiers for the `CreateKal` flow, with a **precise, repo-
   specific boundary** for each (see §3), so "functional / acceptance / e2e" are
   unambiguous in this codebase from now on.
 - Define the **in-memory test harness** the acceptance and e2e tiers need: the
@@ -78,7 +84,7 @@ coverage.
 
 Three tiers, each defined by **where it enters the system** and **what it
 touches**. This mapping is the reference definition for the whole backend, not
-just `Kal`.
+just `CreateKal`.
 
 **Decision (architect):** no tier touches a database. Every tier substitutes
 `KalRepositoryInterface` with `InMemoryKalRepository`. The tiers are therefore
@@ -97,7 +103,7 @@ Boundary rules that make each tier honest:
   the current `CreateKalHandlerTest`, kept as-is and treated as the functional
   tier. No container, no bus, no HTTP.
 - **Acceptance** proves *the container wiring is correct*: that
-  `CreateKalCommandHandler` is discoverable on `command.bus` via its
+  `CreateKalHandler` is discoverable on `command.bus` via its
   `#[AsMessageHandler(bus: 'command.bus')]` attribute, that dispatching the
   command reaches it exactly once, and that the middleware chain does not choke
   on a non-`Storable` command. This tier exists because `config/services.yaml`
@@ -217,7 +223,7 @@ environment therefore has production credentials in hand, which directly
 contradicts CLAUDE.md's "els d'integració contra Supabase **local** (mai
 producció)".
 
-Today the `Kal` path happens to open no connection, and it is worth
+Today the `CreateKal` path happens to open no connection, and it is worth
 recording *why*, because §6 depends on it:
 
 - `CreateKalCommand` implements the plain `CommandInterface`, not
@@ -564,7 +570,7 @@ A checklist, not a vibe. Everything below was verified against the branch.
 |---|---|
 | `Kal/Domain` — `Kal`, `Clue`, `Locales`, `Meeting`, `FileSize` | tested |
 | `Kal/Domain` — 7 other classes | **no test file** (7.2) |
-| `Kal/Application` — `CreateKalCommandHandler` | 15 functional tests; 12 scenario gaps (§6.1) |
+| `Kal/Application` — `CreateKalHandler` | 15 functional tests; 12 scenario gaps (§6.1) |
 | `Kal/Infrastructure` — `KalRepository` | **zero tests**, deliberately out of scope (§3, §6.4) |
 | `Kal/Ui` | does not exist (§5) |
 | `Shared/Domain/ValueObject` — `DateTime`, `Locale`, `Url`, `HttpsUrl` | tested (`HttpsUrl` inside `UrlTest`) |

@@ -61,11 +61,11 @@ Els dos últims casos són el que aquesta spec ha de resoldre.
 
 ---
 
-## 4. Decisió 1 — la resposta de `Kal`
+## 4. Decisió 1 — la resposta de `CreateKal`
 
 ### Problema
 
-`Kal::create()` genera l'ULID **a dins de l'agregat** i `CreateKalCommandHandler`
+`Kal::create()` genera l'ULID **a dins de l'agregat** i `CreateKalHandler`
 retorna `void`, així que el controller no té l'id per retornar-lo. Ara mateix
 respon `201` amb el body buit. Si el frontend ha de redirigir al KAL acabat de
 crear (que és el flux natural: crear → anar-hi), li cal l'id i avui no el pot

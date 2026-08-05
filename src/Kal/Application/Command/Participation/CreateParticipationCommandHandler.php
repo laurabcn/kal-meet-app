@@ -11,6 +11,7 @@ use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Domain\Repository\ParticipationRepositoryInterface;
+use App\Kal\Domain\Service\JoinPolicy;
 use App\Shared\Application\Command\CommandHandlerInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -22,6 +23,7 @@ final readonly class CreateParticipationCommandHandler implements CommandHandler
     public function __construct(
         private KalRepositoryInterface $kalRepository,
         private ParticipationRepositoryInterface $participationRepository,
+        private JoinPolicy $joinPolicy,
     ) {
     }
 
@@ -39,9 +41,7 @@ final readonly class CreateParticipationCommandHandler implements CommandHandler
 
         $kal = $this->kalRepository->findByToken($kalId, $inviteToken);
 
-        if ($kal->organizerId->equals($userId)) {
-            throw KalAlreadyMemberException::create();
-        }
+        $this->joinPolicy->ensureCanJoin($kal, $userId);
 
         $this->participationRepository->create(
             Participation::create(UlidValue::generate(), $kalId, $userId),

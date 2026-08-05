@@ -27,7 +27,7 @@ final readonly class ParticipationCreateController
     }
 
     /** @throws \InvalidArgumentException */
-    #[Route('/kal/participation', name: 'kal_join', methods: ['POST'])]
+    #[Route('/kal/participation', name: 'kal_participation_create', methods: ['POST'])]
     public function __invoke(Request $request, #[CurrentUser] SupabaseUser $user): JsonResponse
     {
         try {

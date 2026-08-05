@@ -8,6 +8,7 @@ use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Participation;
+use App\Kal\Domain\Service\JoinPolicy;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
@@ -21,6 +22,7 @@ beforeEach(function (): void {
     $this->handler = new CreateParticipationCommandHandler(
         $this->kalRepository,
         $this->participationRepository,
+        new JoinPolicy($this->participationRepository),
     );
 });
 
@@ -114,7 +116,21 @@ it('rejects an empty invite token as a domain error', function (): void {
         $kal->id->value(),
         '',
         StubTokenHandler::USER_ID,
-    )))->toThrow(KalException::class);
+    )))->toThrow(KalException::class, 'The invite token cannot be empty.');
+});
+
+it('propagates a participation persistence failure', function (): void {
+    $kal = KalMother::create();
+    $this->kalRepository->create($kal);
+    $this->participationRepository->failWith(
+        KalException::persistenceFailed(new RuntimeException('connection lost')),
+    );
+
+    expect(fn () => ($this->handler)(new CreateParticipationCommand(
+        $kal->id->value(),
+        $kal->inviteToken->value(),
+        StubTokenHandler::USER_ID,
+    )))->toThrow(KalException::class, 'Failed to persist the kal.');
 });
 
 it('rejects a kal id that is not a ulid', function (): void {

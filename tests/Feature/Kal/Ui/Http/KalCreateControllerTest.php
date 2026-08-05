@@ -8,21 +8,6 @@ use Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository;
 use Tests\Unit\Shared\Infrastructure\Symfony\Security\StubTokenHandler;
 
 /**
- * El firewall protegeix `^/` sencer: sense capçalera aquests tests reben 401 i
- * no arriben mai al controller. El que es prova aquí és el contracte del
- * payload, no l'auth — d'això se n'ocupa tests/Feature/Security/Http/FirewallTest.php.
- *
- * @return array<string, string>
- */
-function authHeaders(): array
-{
-    return [
-        'CONTENT_TYPE' => 'application/json',
-        'HTTP_AUTHORIZATION' => 'Bearer '.StubTokenHandler::TOKEN,
-    ];
-}
-
-/**
  * @param array<string, mixed> $overrides
  *
  * @return array<string, mixed>
@@ -44,7 +29,7 @@ function kalPayload(array $overrides = []): array
 it('creates a kal and answers 201 carrying no data', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload()));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload()));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED)
         ->and($client->getResponse()->getContent())->toBe('{}');
@@ -53,7 +38,7 @@ it('creates a kal and answers 201 carrying no data', function (): void {
 it('hands the payload to the domain through the command bus', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['name' => "Xal d'estiu"])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['name' => "Xal d'estiu"])));
 
     $repository = static::getContainer()->get(KalRepositoryInterface::class);
     expect($repository)->toBeInstanceOf(InMemoryKalRepository::class);
@@ -71,7 +56,7 @@ it('hands the payload to the domain through the command bus', function (): void 
 it('answers 400 when the body is not json', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: 'not json at all');
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: 'not json at all');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request body is not valid JSON.","code":"invalid_json"}');
@@ -80,7 +65,7 @@ it('answers 400 when the body is not json', function (): void {
 it('answers 400 when the body is an empty json object', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: '{}');
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: '{}');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
@@ -89,7 +74,7 @@ it('answers 400 when the body is an empty json object', function (): void {
 it('answers 400 when locales is not a list', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['locales' => 'ca'])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['locales' => 'ca'])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
@@ -101,7 +86,7 @@ it('rejects a body carrying organizerId, even if it matches the token', function
     // Ni tan sols el "seu" val: el camp no és del contracte. Si s'acceptés
     // quan coincideix, el dia que algú deixés de comparar-lo tornaria a
     // obrir-se la suplantació sencera.
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['organizerId' => StubTokenHandler::USER_ID])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['organizerId' => StubTokenHandler::USER_ID])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
@@ -111,7 +96,7 @@ it('creates no kal attributed to someone else through the body', function (): vo
     $client = static::createClient();
 
     // Un ULID que no és el del token: el cas de suplantació del spec §1.
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['organizerId' => '01J7A2C4E6G8K0M2P4R6T8V0X1'])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['organizerId' => '01J7A2C4E6G8K0M2P4R6T8V0X1'])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST);
 
@@ -123,7 +108,7 @@ it('creates no kal attributed to someone else through the body', function (): vo
 it('persists nothing when the payload is rejected', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['name' => ''])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['name' => ''])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST);
 
@@ -135,7 +120,7 @@ it('persists nothing when the payload is rejected', function (): void {
 it('answers 400 when id is not a ulid', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: authHeaders(), content: (string) json_encode(kalPayload(['id' => 'not-a-ulid'])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['id' => 'not-a-ulid'])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
@@ -147,7 +132,7 @@ it('answers 400 when a domain invariant is violated', function (): void {
     $client->request(
         'POST',
         '/kal',
-        server: authHeaders(),
+        server: apiJsonHeaders(),
         content: (string) json_encode(kalPayload([
             'startsOn' => '2026-10-01 00:00:00',
             'endsOn' => '2026-09-01 00:00:00',
@@ -163,10 +148,10 @@ it('answers 409 when the kal id already exists', function (): void {
     $client->disableReboot();
     $payload = (string) json_encode(kalPayload());
 
-    $client->request('POST', '/kal', server: authHeaders(), content: $payload);
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: $payload);
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED);
 
-    $client->request('POST', '/kal', server: authHeaders(), content: $payload);
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: $payload);
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CONFLICT)
         ->and($client->getResponse()->getContent())->toBe('{"error":"A kal with this id already exists.","code":"kal_already_exists"}');

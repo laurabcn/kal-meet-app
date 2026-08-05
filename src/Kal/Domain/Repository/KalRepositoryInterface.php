@@ -34,6 +34,8 @@ interface KalRepositoryInterface
     public function getActiveById(UlidValue $id): Kal;
 
     /**
+     * Qui pot apuntar-s'hi no ho decideix el repositori: veure `JoinPolicy`.
+     *
      * @throws KalNotFoundException
      * @throws KalException
      */

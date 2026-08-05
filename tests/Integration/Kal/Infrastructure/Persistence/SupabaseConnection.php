@@ -73,12 +73,51 @@ final class SupabaseConnection
         }
     }
 
-    /** El perfil que exigeix la FK `kals.organizer_id -> profiles.id`. */
-    public static function insertProfile(string $id): void
+    /**
+     * El perfil que exigeix la FK `kals.organizer_id -> profiles.id`.
+     *
+     * L'`external_id` només importa als tests de RLS: les polítiques comparen
+     * `profiles.external_id` amb `auth.uid()::text`, que és un uuid. Per la
+     * resta de tests un valor qualsevol serveix.
+     */
+    public static function insertProfile(string $id, ?string $externalId = null): void
     {
         self::get()->executeStatement(
             'INSERT INTO profiles (id, external_id) VALUES (:id, :external_id)',
-            ['id' => $id, 'external_id' => 'ext-'.$id],
+            ['id' => $id, 'external_id' => $externalId ?? 'ext-'.$id],
         );
+    }
+
+    /**
+     * Qui és `auth.uid()` durant la transacció del test; `null` = anònima.
+     *
+     * `set_config(..., true)` és local a la transacció, o sigui que el rollback
+     * de l'`afterEach` també desfà la identitat.
+     *
+     * @throws \JsonException
+     */
+    public static function authenticateAs(?string $externalId): void
+    {
+        self::get()->executeStatement(
+            'SELECT set_config(:setting, :claims, true)',
+            [
+                'setting' => 'request.jwt.claims',
+                'claims' => null === $externalId
+                    ? ''
+                    : json_encode(['sub' => $externalId], \JSON_THROW_ON_ERROR),
+            ],
+        );
+    }
+
+    /**
+     * Passa al rol `authenticated`, el que Supabase dona a una usuària
+     * loguejada. Imprescindible per provar una política: `postgres` és
+     * superusuari i **salta la RLS**, o sigui que sense això una política
+     * sembla que funciona encara que no filtri res. `SET LOCAL` es desfà amb
+     * la transacció.
+     */
+    public static function asAuthenticatedRole(): void
+    {
+        self::get()->executeStatement('SET LOCAL ROLE authenticated');
     }
 }
