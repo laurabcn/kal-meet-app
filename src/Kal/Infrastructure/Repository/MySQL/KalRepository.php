@@ -24,6 +24,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     private const string TABLE_FILES = 'kal_files';
     private const string TABLE_CLUES = 'clues';
     private const string TABLE_MEETINGS = 'meetings';
+    private const string TABLE_DEBATE_ROOMS = 'debate_rooms';
 
     public function __construct(
         public private(set) MySQLRepository $repository,
@@ -61,6 +62,10 @@ final readonly class KalRepository implements KalRepositoryInterface
             foreach ($data['meetings'] as $meeting) {
                 $connection->insert(self::TABLE_MEETINGS, $meeting);
             }
+
+            // Dins de la mateixa transacció a propòsit: un KAL sense aula no es
+            // pot llegir, o sigui que no pot existir ni un instant.
+            $connection->insert(self::TABLE_DEBATE_ROOMS, $data['debate_room']);
 
             $connection->commit();
         } catch (UniqueConstraintViolationException $e) {
@@ -182,6 +187,14 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->createQueryBuilder()
             ->select('*')
             ->from(self::TABLE_MEETINGS)
+            ->where('kal_id = :kalId')
+            ->setParameter('kalId', $kalId)
+            ->executeQuery()
+            ->fetchAllAssociative();
+        $data['debate_rooms'] = $connection
+            ->createQueryBuilder()
+            ->select('*')
+            ->from(self::TABLE_DEBATE_ROOMS)
             ->where('kal_id = :kalId')
             ->setParameter('kalId', $kalId)
             ->executeQuery()

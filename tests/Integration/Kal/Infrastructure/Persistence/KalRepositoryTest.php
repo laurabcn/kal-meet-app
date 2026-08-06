@@ -292,3 +292,40 @@ it('throws kal_not_found from findByToken when no kal exists for the given id', 
         InviteToken::fromString('deadbeefdeadbeefdeadbeefdeadbeef'),
     ))->toThrow(KalNotFoundException::class, 'Kal not found.');
 });
+
+// L'aula s'escriu dins de la MATEIXA transacció que el KAL: un KAL sense ella
+// no es pot llegir, o sigui que no pot existir ni un instant.
+it('writes the debate room in the same transaction as the kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+
+    $this->repository->create($kal);
+
+    $row = $this->connection->fetchAssociative(
+        'SELECT * FROM debate_rooms WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect($row['id'])->toBe($kal->debateRoom->id->value())
+        ->and($row['created_at'])->not->toBeNull();
+});
+
+it('reconstructs the debate room when loading the kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $found = $this->repository->getActiveById($kal->id);
+
+    expect($found->debateRoom->id->equals($kal->debateRoom->id))->toBeTrue();
+});
+
+it('reports a kal whose debate room went missing as unreadable', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $this->connection->executeStatement(
+        'DELETE FROM debate_rooms WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect(fn () => $this->repository->getActiveById($kal->id))
+        ->toThrow(KalException::class, 'The kal is missing its debate room.');
+});

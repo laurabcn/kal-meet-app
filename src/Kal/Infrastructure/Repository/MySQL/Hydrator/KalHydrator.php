@@ -6,6 +6,7 @@ namespace App\Kal\Infrastructure\Repository\MySQL\Hydrator;
 
 use App\Kal\Domain\Clue;
 use App\Kal\Domain\Clues;
+use App\Kal\Domain\DebateRoom;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\File;
@@ -65,6 +66,14 @@ final readonly class KalHydrator implements HydratorInterface
             $clues[] = $this->hydrateClue($row, $meeting);
         }
 
+        // Obligatòria: un KAL sense aula és un KAL trencat, perquè és on aterra
+        // la participant. La migració de backfill garanteix que no n'hi hagi cap
+        // sense, i l'índex únic que no n'hi hagi dues.
+        $debateRoomRow = self::parseRowList($data['debate_rooms'] ?? [])[0] ?? null;
+        if (null === $debateRoomRow) {
+            throw KalException::missingDebateRoom();
+        }
+
         return Kal::reconstitute(
             id: UlidValue::create($this->parseString($data['id'])),
             organizerId: UlidValue::create($this->parseString($data['organizer_id'])),
@@ -85,6 +94,10 @@ final readonly class KalHydrator implements HydratorInterface
             coverPath: $data['cover_path'] ? $this->parseString($data['cover_path']) : null,
             inviteToken: InviteToken::create($this->parseString($data['invite_token'])),
             meetings: Meetings::create($kalMeetings),
+            debateRoom: DebateRoom::reconstitute(
+                UlidValue::create($this->parseString($debateRoomRow['id'] ?? null)),
+                DateTime::create($this->parseDateTime($debateRoomRow['created_at'] ?? null)),
+            ),
             createdAt: DateTime::create($this->parseDateTime($data['created_at'])),
             updatedAt: DateTime::create($this->parseDateTime($data['updated_at'])),
         );
@@ -140,7 +153,12 @@ final readonly class KalHydrator implements HydratorInterface
      *         url: string,
      *         scheduled_at: string,
      *         timezone: string
-     *     }>
+     *     }>,
+     *     debate_room: array{
+     *         id: string,
+     *         kal_id: string,
+     *         created_at: string
+     *     }
      * }
      *
      * @throws KalException
@@ -183,6 +201,11 @@ final readonly class KalHydrator implements HydratorInterface
                 $object->clues->all(),
             )),
             'meetings' => self::extractMeetings($kalId, $object),
+            'debate_room' => [
+                'id' => $object->debateRoom->id->value(),
+                'kal_id' => $kalId,
+                'created_at' => $object->debateRoom->createdAt->value(),
+            ],
         ];
     }
 

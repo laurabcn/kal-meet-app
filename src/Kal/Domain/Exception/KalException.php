@@ -58,6 +58,12 @@ final class KalException extends DomainException
         return new self('kal_persistence_failed', 'Failed to persist the kal.', 0, $cause);
     }
 
+    /** L'aula és on aterra la participant: un KAL sense ella no es pot servir. */
+    public static function missingDebateRoom(): self
+    {
+        return new self('kal_debate_room_missing', 'The kal is missing its debate room.');
+    }
+
     /** A persisted clue with no meeting row would break the "meeting obligatòria" invariant. */
     public static function missingClueMeeting(): self
     {

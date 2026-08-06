@@ -26,6 +26,7 @@ final class Kal extends AggregateRoot
         public private(set) readonly ?string $coverPath,
         public private(set) readonly InviteToken $inviteToken,
         public private(set) readonly Meetings $meetings,
+        public private(set) readonly DebateRoom $debateRoom,
         public private(set) readonly DateTime $createdAt,
         public private(set) readonly DateTime $updatedAt,
     ) {
@@ -69,6 +70,7 @@ final class Kal extends AggregateRoot
             $coverPath,
             InviteToken::generate(),
             $meetings ?? Meetings::create([]),
+            DebateRoom::create(),
             $now,
             $now,
         );
@@ -88,6 +90,7 @@ final class Kal extends AggregateRoot
         ?string $coverPath,
         InviteToken $inviteToken,
         Meetings $meetings,
+        DebateRoom $debateRoom,
         DateTime $createdAt,
         DateTime $updatedAt,
     ): self {
@@ -110,6 +113,7 @@ final class Kal extends AggregateRoot
             $coverPath,
             $inviteToken,
             $meetings,
+            $debateRoom,
             $createdAt,
             $updatedAt,
         );
