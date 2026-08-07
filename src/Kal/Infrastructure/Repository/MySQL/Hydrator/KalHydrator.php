@@ -9,6 +9,7 @@ use App\Kal\Domain\Clues;
 use App\Kal\Domain\DebateRoom;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\File;
 use App\Kal\Domain\FileExtension;
 use App\Kal\Domain\Files;
@@ -34,6 +35,8 @@ final readonly class KalHydrator implements HydratorInterface
      *
      * @throws InvalidArgumentException
      * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
      * @throws KalFileException
      * @throws \TypeError
      * @throws \ValueError
@@ -61,7 +64,7 @@ final readonly class KalHydrator implements HydratorInterface
             $clueId = $this->parseString($row['id'] ?? null);
             $meeting = $meetingsByClueId[$clueId] ?? null;
             if (null === $meeting) {
-                throw KalException::missingClueMeeting();
+                throw KalStateException::missingClueMeeting();
             }
             $clues[] = $this->hydrateClue($row, $meeting);
         }
@@ -69,10 +72,12 @@ final readonly class KalHydrator implements HydratorInterface
         // Obligatòria: un KAL sense aula és un KAL trencat, perquè és on aterra
         // la participant. La migració de backfill garanteix que no n'hi hagi cap
         // sense, i l'índex únic que no n'hi hagi dues.
-        $debateRoomRow = self::parseRowList($data['debate_rooms'] ?? [])[0] ?? null;
-        if (null === $debateRoomRow) {
-            throw KalException::missingDebateRoom();
+        $debateRoomRows = self::parseRowList($data['debate_rooms'] ?? []);
+        if ([] === $debateRoomRows) {
+            throw KalStateException::missingDebateRoom();
         }
+
+        $debateRoomRow = $debateRoomRows[0];
 
         return Kal::reconstitute(
             id: UlidValue::create($this->parseString($data['id'])),
@@ -95,8 +100,8 @@ final readonly class KalHydrator implements HydratorInterface
             inviteToken: InviteToken::create($this->parseString($data['invite_token'])),
             meetings: Meetings::create($kalMeetings),
             debateRoom: DebateRoom::reconstitute(
-                UlidValue::create($this->parseString($debateRoomRow['id'] ?? null)),
-                DateTime::create($this->parseDateTime($debateRoomRow['created_at'] ?? null)),
+                UlidValue::create($this->parseString($debateRoomRow['id'])),
+                DateTime::create($this->parseDateTime($debateRoomRow['created_at'])),
             ),
             createdAt: DateTime::create($this->parseDateTime($data['created_at'])),
             updatedAt: DateTime::create($this->parseDateTime($data['updated_at'])),
@@ -162,11 +167,13 @@ final readonly class KalHydrator implements HydratorInterface
      * }
      *
      * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
      */
     public function extract(object $object): array
     {
         if (!$object instanceof Kal) {
-            throw KalException::invalidKal();
+            throw KalStateException::invalidKal();
         }
 
         /** @var Kal $object */
@@ -437,6 +444,8 @@ final readonly class KalHydrator implements HydratorInterface
      * @throws InvalidArgumentException
      * @throws KalFileException
      * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
      */
     private function hydrateClue(array $row, Meeting $meeting): Clue
     {
