@@ -36,7 +36,6 @@ final readonly class KalHydrator implements HydratorInterface
      * @throws InvalidArgumentException
      * @throws KalException
      * @throws KalStateException
-     * @throws KalStateException
      * @throws KalFileException
      * @throws \TypeError
      * @throws \ValueError
@@ -50,18 +49,18 @@ final readonly class KalHydrator implements HydratorInterface
 
         foreach ($meetingRows as $row) {
             $meeting = $this->hydrateMeeting($row);
-            $clueId = $row['clue_id'] ?? null;
-            if (null === $clueId || '' === $clueId) {
+            $clueId = $this->optionalString($row, 'clue_id');
+            if (null === $clueId) {
                 $kalMeetings[] = $meeting;
                 continue;
             }
 
-            $meetingsByClueId[$this->parseString($clueId)] = $meeting;
+            $meetingsByClueId[$clueId] = $meeting;
         }
 
         $clues = [];
         foreach (self::parseRowList($data['clues'] ?? []) as $row) {
-            $clueId = $this->parseString($row['id'] ?? null);
+            $clueId = $this->requiredString($row, 'id');
             $meeting = $meetingsByClueId[$clueId] ?? null;
             if (null === $meeting) {
                 throw KalStateException::missingClueMeeting();
@@ -69,22 +68,26 @@ final readonly class KalHydrator implements HydratorInterface
             $clues[] = $this->hydrateClue($row, $meeting);
         }
 
-        // Obligatòria: un KAL sense aula és un KAL trencat, perquè és on aterra
-        // la participant. La migració de backfill garanteix que no n'hi hagi cap
-        // sense, i l'índex únic que no n'hi hagi dues.
+        // Obligatòria i única (índex `debate_rooms_kal_id_unique`). Zero o
+        // més d'una = agregat trencat; no triem una fila a l'atzar.
         $debateRoomRows = self::parseRowList($data['debate_rooms'] ?? []);
-        if ([] === $debateRoomRows) {
+        if (1 !== \count($debateRoomRows)) {
             throw KalStateException::missingDebateRoom();
         }
 
         $debateRoomRow = $debateRoomRows[0];
+        $debateRoom = DebateRoom::reconstitute(
+            UlidValue::create($this->requiredString($debateRoomRow, 'id')),
+            DateTime::create($this->requiredDateTime($debateRoomRow, 'created_at')),
+        );
 
         return Kal::reconstitute(
-            id: UlidValue::create($this->parseString($data['id'])),
-            organizerId: UlidValue::create($this->parseString($data['organizer_id'])),
-            name: NonEmptyStringValue::create($this->parseString($data['name'])),
-            description: $data['description'] ?
-                NonEmptyStringValue::create($this->parseString($data['description'])) : null,
+            id: UlidValue::create($this->requiredString($data, 'id')),
+            organizerId: UlidValue::create($this->requiredString($data, 'organizer_id')),
+            name: NonEmptyStringValue::create($this->requiredString($data, 'name')),
+            description: null !== ($description = $this->optionalString($data, 'description'))
+                ? NonEmptyStringValue::create($description)
+                : null,
             files: Files::create(array_map(
                 $this->hydrateKalFile(...),
                 self::parseRowList($data['files'] ?? []),
@@ -94,17 +97,16 @@ final readonly class KalHydrator implements HydratorInterface
                 static fn (string $code): Locale => Locale::fromString($code),
                 self::parseStringList($data['locales'] ?? []),
             )),
-            startsOn: DateTime::create($this->parseDateTime($data['starts_on'])),
-            endsOn: $data['ends_on'] ? DateTime::create($this->parseDateTime($data['ends_on'])) : null,
-            coverPath: $data['cover_path'] ? $this->parseString($data['cover_path']) : null,
-            inviteToken: InviteToken::create($this->parseString($data['invite_token'])),
+            startsOn: DateTime::create($this->requiredDateTime($data, 'starts_on')),
+            endsOn: null !== ($endsOn = $this->optionalDateTime($data, 'ends_on'))
+                ? DateTime::create($endsOn)
+                : null,
+            coverPath: $this->optionalString($data, 'cover_path'),
+            inviteToken: InviteToken::create($this->requiredString($data, 'invite_token')),
             meetings: Meetings::create($kalMeetings),
-            debateRoom: DebateRoom::reconstitute(
-                UlidValue::create($this->parseString($debateRoomRow['id'])),
-                DateTime::create($this->parseDateTime($debateRoomRow['created_at'])),
-            ),
-            createdAt: DateTime::create($this->parseDateTime($data['created_at'])),
-            updatedAt: DateTime::create($this->parseDateTime($data['updated_at'])),
+            debateRoom: $debateRoom,
+            createdAt: DateTime::create($this->requiredDateTime($data, 'created_at')),
+            updatedAt: DateTime::create($this->requiredDateTime($data, 'updated_at')),
         );
     }
 
@@ -166,8 +168,6 @@ final readonly class KalHydrator implements HydratorInterface
      *     }
      * }
      *
-     * @throws KalException
-     * @throws KalStateException
      * @throws KalStateException
      */
     public function extract(object $object): array
@@ -428,13 +428,13 @@ final readonly class KalHydrator implements HydratorInterface
     private function hydrateKalFile(array $row): File
     {
         return new File(
-            NonEmptyStringValue::create($this->parseString($row['file_name'] ?? null)),
-            NonEmptyStringValue::create($this->parseString($row['file_path'] ?? null)),
-            FileSize::create($this->parseInteger($row['file_size'] ?? null)),
-            FileExtension::tryFromStatus($this->parseString($row['file_extension'] ?? null)),
-            Locale::fromString($this->parseString($row['locale'] ?? null)),
-            UlidValue::create($this->parseString($row['upload_id'] ?? null)),
-            DateTime::create($this->parseDateTime($row['uploaded_at'] ?? null)),
+            NonEmptyStringValue::create($this->requiredString($row, 'file_name')),
+            NonEmptyStringValue::create($this->requiredString($row, 'file_path')),
+            FileSize::create($this->requiredInteger($row, 'file_size')),
+            FileExtension::tryFromStatus($this->requiredString($row, 'file_extension')),
+            Locale::fromString($this->requiredString($row, 'locale')),
+            UlidValue::create($this->requiredString($row, 'upload_id')),
+            DateTime::create($this->requiredDateTime($row, 'uploaded_at')),
         );
     }
 
@@ -444,32 +444,31 @@ final readonly class KalHydrator implements HydratorInterface
      * @throws InvalidArgumentException
      * @throws KalFileException
      * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
      */
     private function hydrateClue(array $row, Meeting $meeting): Clue
     {
         $file = new File(
-            NonEmptyStringValue::create($this->parseString($row['file_name'] ?? null)),
-            NonEmptyStringValue::create($this->parseString($row['file_path'] ?? null)),
-            FileSize::create($this->parseInteger($row['file_size'] ?? null)),
-            FileExtension::tryFromStatus($this->parseString($row['file_extension'] ?? null)),
-            Locale::fromString($this->parseString($row['file_locale'] ?? null)),
-            UlidValue::create($this->parseString($row['file_upload_id'] ?? null)),
-            DateTime::create($this->parseDateTime($row['file_uploaded_at'] ?? null)),
+            NonEmptyStringValue::create($this->requiredString($row, 'file_name')),
+            NonEmptyStringValue::create($this->requiredString($row, 'file_path')),
+            FileSize::create($this->requiredInteger($row, 'file_size')),
+            FileExtension::tryFromStatus($this->requiredString($row, 'file_extension')),
+            Locale::fromString($this->requiredString($row, 'file_locale')),
+            UlidValue::create($this->requiredString($row, 'file_upload_id')),
+            DateTime::create($this->requiredDateTime($row, 'file_uploaded_at')),
         );
 
         return Clue::reconstitute(
-            id: UlidValue::create($this->parseString($row['id'] ?? null)),
-            name: NonEmptyStringValue::create($this->parseString($row['name'] ?? null)),
-            description: ($row['description'] ?? null) ?
-                NonEmptyStringValue::create($this->parseString($row['description'])) : null,
+            id: UlidValue::create($this->requiredString($row, 'id')),
+            name: NonEmptyStringValue::create($this->requiredString($row, 'name')),
+            description: null !== ($description = $this->optionalString($row, 'description'))
+                ? NonEmptyStringValue::create($description)
+                : null,
             file: $file,
             meeting: $meeting,
-            locale: Locale::fromString($this->parseString($row['locale'] ?? null)),
-            startsOn: DateTime::create($this->parseDateTime($row['starts_on'] ?? null)),
-            endsOn: DateTime::create($this->parseDateTime($row['ends_on'] ?? null)),
-            updatedAt: DateTime::create($this->parseDateTime($row['updated_at'] ?? null)),
+            locale: Locale::fromString($this->requiredString($row, 'locale')),
+            startsOn: DateTime::create($this->requiredDateTime($row, 'starts_on')),
+            endsOn: DateTime::create($this->requiredDateTime($row, 'ends_on')),
+            updatedAt: DateTime::create($this->requiredDateTime($row, 'updated_at')),
         );
     }
 
@@ -482,11 +481,81 @@ final readonly class KalHydrator implements HydratorInterface
     private function hydrateMeeting(array $row): Meeting
     {
         return Meeting::reconstitute(
-            id: UlidValue::create($this->parseString($row['id'] ?? null)),
-            scheduledAt: DateTime::create($this->parseDateTime($row['scheduled_at'] ?? null)),
-            url: HttpsUrl::fromString($this->parseString($row['url'] ?? null)),
-            title: NonEmptyStringValue::create($this->parseString($row['title'] ?? null)),
-            timezone: $this->parseString($row['timezone'] ?? null),
+            id: UlidValue::create($this->requiredString($row, 'id')),
+            scheduledAt: DateTime::create($this->requiredDateTime($row, 'scheduled_at')),
+            url: HttpsUrl::fromString($this->requiredString($row, 'url')),
+            title: NonEmptyStringValue::create($this->requiredString($row, 'title')),
+            timezone: $this->requiredString($row, 'timezone'),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws InvalidArgumentException
+     */
+    private function requiredString(array $row, string $key): string
+    {
+        if (!\array_key_exists($key, $row) || null === $row[$key]) {
+            throw InvalidArgumentException::notAString();
+        }
+
+        return $this->parseString($row[$key]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws InvalidArgumentException
+     */
+    private function optionalString(array $row, string $key): ?string
+    {
+        if (!\array_key_exists($key, $row) || null === $row[$key] || '' === $row[$key]) {
+            return null;
+        }
+
+        return $this->parseString($row[$key]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws InvalidArgumentException
+     */
+    private function requiredDateTime(array $row, string $key): string
+    {
+        if (!\array_key_exists($key, $row) || null === $row[$key] || '' === $row[$key]) {
+            throw InvalidArgumentException::notAString();
+        }
+
+        return $this->parseDateTime($row[$key]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws InvalidArgumentException
+     */
+    private function optionalDateTime(array $row, string $key): ?string
+    {
+        if (!\array_key_exists($key, $row) || null === $row[$key] || '' === $row[$key]) {
+            return null;
+        }
+
+        return $this->parseDateTime($row[$key]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @throws InvalidArgumentException
+     */
+    private function requiredInteger(array $row, string $key): int
+    {
+        if (!\array_key_exists($key, $row) || null === $row[$key]) {
+            throw InvalidArgumentException::notAnInteger();
+        }
+
+        return $this->parseInteger($row[$key]);
     }
 }

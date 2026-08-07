@@ -13,10 +13,7 @@ final readonly class InviteToken
     {
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     public static function fromString(string $value): self
     {
         if ('' === $value) {
@@ -31,10 +28,7 @@ final readonly class InviteToken
         return new self($parseString);
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     */
+    /** @throws KalStateException */
     public static function generate(): self
     {
         try {

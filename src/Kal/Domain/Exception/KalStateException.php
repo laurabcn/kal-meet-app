@@ -17,10 +17,13 @@ use App\Shared\Domain\Exception\CorruptedStateException;
  */
 final class KalStateException extends CorruptedStateException
 {
-    /** L'aula és on aterra la participant: un KAL sense ella no es pot servir. */
+    /** Zero o més d'una aula trenquen l'invariant MVP (índex únic + CreateKal). */
     public static function missingDebateRoom(): self
     {
-        return new self('kal_debate_room_missing', 'The kal is missing its debate room.');
+        return new self(
+            'kal_debate_room_missing',
+            'The kal does not have exactly one debate room.',
+        );
     }
 
     /** Una pista persistida sense reunió trencaria la invariant de «reunió obligatòria». */

@@ -66,7 +66,6 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
      * @param list<mixed> $locales
      *
      * @throws KalException
-     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     private static function buildLocales(array $locales): Locales
@@ -110,7 +109,6 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
      * @param list<mixed> $meetings
      *
      * @throws KalException
-     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     private static function buildMeetings(array $meetings): Meetings

@@ -31,7 +31,7 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /**
      * @throws KalAlreadyExistsException
-     * @throws KalException
+     * @throws KalStateException
      */
     public function create(Kal $kal): void
     {

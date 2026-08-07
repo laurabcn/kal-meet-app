@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -152,9 +151,9 @@ it('leaves nothing behind when a later insert fails', function (): void {
             ],
         );
 
-        // UniqueConstraintViolationException → kal_already_exists (amb rollback).
+        // Unique d'una filla (meetings.id) → persistenceFailed, no kal_already_exists.
         expect(fn () => $this->repository->create($kal))
-            ->toThrow(KalAlreadyExistsException::class, 'A kal with this id already exists.');
+            ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 
         $id = $kal->id->value();
         $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
@@ -327,5 +326,5 @@ it('reports a kal whose debate room went missing as unreadable', function (): vo
     );
 
     expect(fn () => $this->repository->getActiveById($kal->id))
-        ->toThrow(KalStateException::class, 'The kal is missing its debate room.');
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
 });

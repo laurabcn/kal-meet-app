@@ -37,7 +37,6 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws Exception
      * @throws KalAlreadyExistsException
-     * @throws KalException
      * @throws KalStateException
      */
     public function create(Kal $kal): void
@@ -75,7 +74,13 @@ final readonly class KalRepository implements KalRepositoryInterface
                 $connection->rollBack();
             }
 
-            throw KalAlreadyExistsException::create();
+            // Només el conflicte d'identitat del KAL és 409. Qualsevol altre
+            // unique (meetings, debate_rooms, …) és estat trencat / 500.
+            if (str_contains($e->getMessage(), 'kals_pkey')) {
+                throw KalAlreadyExistsException::create();
+            }
+
+            throw KalStateException::persistenceFailed($e);
         } catch (\Throwable $e) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();

@@ -240,5 +240,13 @@ it('refuses to hydrate a kal with no debate room', function (): void {
     $payload['debate_rooms'] = [];
 
     expect(fn () => (new KalHydrator())->hydrate($payload))
-        ->toThrow(KalStateException::class, 'The kal is missing its debate room.');
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
+});
+
+it('refuses to hydrate a kal with more than one debate room', function (): void {
+    $payload = hydratePayloadFromExtract((new KalHydrator())->extract(KalMother::create()));
+    $payload['debate_rooms'][] = $payload['debate_rooms'][0];
+
+    expect(fn () => (new KalHydrator())->hydrate($payload))
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
 });

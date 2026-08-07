@@ -78,11 +78,7 @@ final class Kal extends AggregateRoot
         );
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     public static function reconstitute(
         UlidValue $id,
         UlidValue $organizerId,
@@ -125,11 +121,7 @@ final class Kal extends AggregateRoot
         );
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     public function addClue(Clue $clue): void
     {
         self::guardClueWithinRange($clue, $this->startsOn, $this->endsOn);
@@ -144,11 +136,7 @@ final class Kal extends AggregateRoot
         $this->meetings->add($meeting);
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardAgainstInvalidDateRange(DateTime $startsOn, ?DateTime $endsOn): void
     {
         if (null !== $endsOn && !$endsOn->isAfter($startsOn)) {
@@ -156,11 +144,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardCluesWithinRange(Clues $clues, DateTime $startsOn, ?DateTime $endsOn): void
     {
         foreach ($clues->all() as $clue) {
@@ -168,11 +152,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardFilesLocaleEnabled(Files $files, Locales $locales): void
     {
         foreach ($files->all() as $file) {
@@ -180,11 +160,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardCluesFileLocaleEnabled(Clues $clues, Locales $locales): void
     {
         foreach ($clues->all() as $clue) {
@@ -192,11 +168,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardFileLocaleEnabled(File $file, Locales $locales): void
     {
         if (!$locales->contains($file->locale)) {
@@ -204,11 +176,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardCluesLocaleEnabled(Clues $clues, Locales $locales): void
     {
         foreach ($clues->all() as $clue) {
@@ -216,11 +184,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardClueLocaleEnabled(Clue $clue, Locales $locales): void
     {
         if (!$locales->contains($clue->locale)) {
@@ -228,11 +192,7 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /**
-     * @throws KalException
-     * @throws KalStateException
-     * @throws KalStateException
-     */
+    /** @throws KalException */
     private static function guardClueWithinRange(Clue $clue, DateTime $startsOn, ?DateTime $endsOn): void
     {
         if ($clue->startsOn->isBefore($startsOn)) {
