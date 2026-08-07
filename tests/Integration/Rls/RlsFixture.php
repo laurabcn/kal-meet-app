@@ -94,13 +94,9 @@ final readonly class RlsFixture
             Participation::create(UlidValue::generate(), $kal->id, $memberId),
         );
 
-        // CreateKal no crea l'aula (el xat és candidat MVP, encara no cablejat),
-        // però la política ja existeix: la fila s'insereix a mà per provar-la.
-        $debateRoomId = UlidValue::generate()->value();
-        $connection->insert('debate_rooms', [
-            'id' => $debateRoomId,
-            'kal_id' => $kal->id->value(),
-        ]);
+        // L'aula ja ve amb el KAL: forma part de l'agregat i s'escriu a la
+        // mateixa transacció, o sigui que no cal (ni es pot) inserir-la a mà.
+        $debateRoomId = $kal->debateRoom->id->value();
 
         return new self(
             $organizerUuid,

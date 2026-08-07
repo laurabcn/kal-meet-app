@@ -31,7 +31,8 @@ organitzadora), i fotos / xat / `GET /kals/mine` no tenen base.
 - Llistat `GET /kals/mine` / participacions.
 - Expulsió / re-join després d’expulsió.
 - Regenerar o rotar `inviteToken`.
-- Missatges de xat / crear `debate_room`.
+- Missatges de xat (`debate_messages`). L’aula (`debate_rooms`) la crea
+  `CreateKal`, no aquest endpoint.
 - OpenAPI / E2E / canviar el contracte de create o get.
 
 ## Behavior

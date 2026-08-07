@@ -7,6 +7,7 @@ namespace App\Kal\Domain\Repository;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -15,13 +16,14 @@ interface KalRepositoryInterface
 {
     /**
      * @throws KalAlreadyExistsException
-     * @throws KalException
+     * @throws KalStateException
      */
     public function create(Kal $kal): void;
 
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal;
 
@@ -30,6 +32,7 @@ interface KalRepositoryInterface
      *
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      */
     public function getActiveById(UlidValue $id): Kal;
 
@@ -38,6 +41,7 @@ interface KalRepositoryInterface
      *
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      */
     public function findByToken(UlidValue $kalId, InviteToken $inviteToken): Kal;
 }

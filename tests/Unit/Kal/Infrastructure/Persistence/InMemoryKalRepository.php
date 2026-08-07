@@ -7,6 +7,7 @@ namespace Tests\Unit\Kal\Infrastructure\Persistence;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -20,17 +21,17 @@ final class InMemoryKalRepository implements KalRepositoryInterface
     /** @var array<string, true> */
     private array $deletedIds = [];
 
-    private ?KalException $failure = null;
+    private ?KalStateException $failure = null;
 
     /** La propera escriptura peta, com quan cau la BD a mig `create()`. */
-    public function failWith(KalException $failure): void
+    public function failWith(KalStateException $failure): void
     {
         $this->failure = $failure;
     }
 
     /**
      * @throws KalAlreadyExistsException
-     * @throws KalException
+     * @throws KalStateException
      */
     public function create(Kal $kal): void
     {

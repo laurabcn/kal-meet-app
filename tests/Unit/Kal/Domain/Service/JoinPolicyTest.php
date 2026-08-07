@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
-use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Service\JoinPolicy;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -55,9 +55,9 @@ it('ignores a participation in a different kal', function (): void {
 it('propagates a persistence failure from the participation lookup', function (): void {
     $kal = KalMother::create();
     $this->participations->failWith(
-        KalException::persistenceFailed(new RuntimeException('connection lost')),
+        KalStateException::persistenceFailed(new RuntimeException('connection lost')),
     );
 
     expect(fn () => $this->policy->ensureCanJoin($kal, UlidValue::generate()))
-        ->toThrow(KalException::class, 'Failed to persist the kal.');
+        ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });

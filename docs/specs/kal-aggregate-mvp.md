@@ -4,6 +4,11 @@
 > les decisions. Els noms de classe i les rutes que cita són els d’aquell
 > moment i **no** es mantenen al dia — no els facis servir com a referència del
 > codi actual.
+>
+> **Update 2026-08-07:** contràriament al que aquest spec va decidir aleshores
+> («CreateKal sense `debate_room` + backfill després»), l’aula és part de
+> l’agregat i s’escriu a la mateixa transacció. No hi ha migració de backfill
+> (no hi havia KALs en prod). Els missatges del xat segueixen fora.
 
 ## Problem
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Kal\Application\Command\Kal\CreateKalCommand;
 use App\Kal\Application\Command\Kal\CreateKalCommandHandler;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository;
 
@@ -53,7 +54,7 @@ it('creates a kal with minimum required fields and persists it', function (): vo
 it('lets a persistence failure surface instead of reporting success', function (): void {
     // El camí que el doble amagava mentre no sabia fallar: si la BD peta a mig
     // `create()`, el handler no ho ha de convertir en un final feliç.
-    $this->repository->failWith(KalException::persistenceFailed(new RuntimeException('connection lost')));
+    $this->repository->failWith(KalStateException::persistenceFailed(new RuntimeException('connection lost')));
 
     $command = new CreateKalCommand(
         id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
@@ -64,7 +65,7 @@ it('lets a persistence failure surface instead of reporting success', function (
     );
 
     expect(fn () => ($this->handler)($command))
-        ->toThrow(KalException::class, 'Failed to persist the kal.');
+        ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });
 
 it('creates a kal with all optional fields', function (): void {

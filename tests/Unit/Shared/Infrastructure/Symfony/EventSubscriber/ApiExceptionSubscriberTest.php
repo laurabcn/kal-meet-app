@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Infrastructure\Symfony\EventSubscriber\ApiExceptionMapper;
 use App\Shared\Infrastructure\Symfony\EventSubscriber\ApiExceptionSubscriber;
 use Symfony\Component\HttpFoundation\Request;
@@ -99,7 +99,7 @@ it('does not log a 4xx', function (): void {
 // `logger->error` sense `route` ni `code` no serveix per diagnosticar res, i
 // perdre'l no peta ni es nota (CLAUDE.md, «Errors ja comesos»).
 it('logs a 5xx with the full structured context', function (): void {
-    ($this->dispatch)(KalException::persistenceFailed(new RuntimeException('db down')), 'kal_create');
+    ($this->dispatch)(KalStateException::persistenceFailed(new RuntimeException('db down')), 'kal_create');
 
     $errors = $this->logger->ofLevel('error');
 
@@ -109,11 +109,11 @@ it('logs a 5xx with the full structured context', function (): void {
         ->and($errors[0]['context']['http_status'])->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
         ->and($errors[0]['context']['route'])->toBe('kal_create')
         ->and($errors[0]['context']['method'])->toBe('GET')
-        ->and($errors[0]['context']['exception'])->toBeInstanceOf(KalException::class);
+        ->and($errors[0]['context']['exception'])->toBeInstanceOf(KalStateException::class);
 });
 
 it('alerts slack on a 5xx with the status, code and route', function (): void {
-    ($this->dispatch)(KalException::persistenceFailed(new RuntimeException('db down')), 'kal_create');
+    ($this->dispatch)(KalStateException::persistenceFailed(new RuntimeException('db down')), 'kal_create');
 
     expect($this->chatter->sent)->toHaveCount(1)
         ->and($this->chatter->sent[0])->toContain('500')
@@ -127,7 +127,7 @@ it('alerts slack on a 5xx with the status, code and route', function (): void {
 it('still answers the 500 when slack is down', function (): void {
     $this->chatter->failWith(new RuntimeException('slack unreachable'));
 
-    $event = ($this->dispatch)(KalException::persistenceFailed(new RuntimeException('db down')));
+    $event = ($this->dispatch)(KalStateException::persistenceFailed(new RuntimeException('db down')));
 
     expect($event->getResponse()?->getStatusCode())->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
         ->and($event->getResponse()?->getContent())
@@ -137,7 +137,7 @@ it('still answers the 500 when slack is down', function (): void {
 it('records the slack failure as a warning, without losing the original error', function (): void {
     $this->chatter->failWith(new RuntimeException('slack unreachable'));
 
-    ($this->dispatch)(KalException::persistenceFailed(new RuntimeException('db down')));
+    ($this->dispatch)(KalStateException::persistenceFailed(new RuntimeException('db down')));
 
     $warnings = $this->logger->ofLevel('warning');
 
@@ -147,4 +147,15 @@ it('records the slack failure as a warning, without losing the original error', 
         // L'error original s'ha de seguir registrant: la caiguda de Slack no
         // el pot substituir.
         ->and($this->logger->ofLevel('error'))->toHaveCount(1);
+});
+
+// El cas que va destapar la fumada: un KAL amb l'aula esborrada responia 400 i
+// no deixava cap rastre, perquè el subscriber només registra a partir de 500.
+it('logs and alerts a corrupted aggregate instead of blaming the caller', function (): void {
+    $event = ($this->dispatch)(KalStateException::missingDebateRoom(), 'kal_get');
+
+    expect($event->getResponse()?->getStatusCode())->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
+        ->and($this->logger->ofLevel('error'))->toHaveCount(1)
+        ->and($this->chatter->sent)->toHaveCount(1)
+        ->and($this->chatter->sent[0])->toContain('kal_debate_room_missing');
 });

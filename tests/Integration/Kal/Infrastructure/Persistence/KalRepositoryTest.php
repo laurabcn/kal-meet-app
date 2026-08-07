@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Kal\Domain\Exception\KalAlreadyExistsException;
-use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
@@ -152,9 +151,9 @@ it('leaves nothing behind when a later insert fails', function (): void {
             ],
         );
 
-        // UniqueConstraintViolationException → kal_already_exists (amb rollback).
+        // Unique d'una filla (meetings.id) → persistenceFailed, no kal_already_exists.
         expect(fn () => $this->repository->create($kal))
-            ->toThrow(KalAlreadyExistsException::class, 'A kal with this id already exists.');
+            ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 
         $id = $kal->id->value();
         $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
@@ -177,7 +176,7 @@ it('reports a missing organizer as a persistence failure, not a crash', function
     $kal = KalMother::create(organizerId: UlidValue::generate());
 
     expect(fn () => $this->repository->create($kal))
-        ->toThrow(KalException::class, 'Failed to persist the kal.');
+        ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });
 
 it('throws kal_not_found when no kal exists for the given id', function (): void {
@@ -291,4 +290,41 @@ it('throws kal_not_found from findByToken when no kal exists for the given id', 
         UlidValue::generate(),
         InviteToken::fromString('deadbeefdeadbeefdeadbeefdeadbeef'),
     ))->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+// L'aula s'escriu dins de la MATEIXA transacció que el KAL: un KAL sense ella
+// no es pot llegir, o sigui que no pot existir ni un instant.
+it('writes the debate room in the same transaction as the kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+
+    $this->repository->create($kal);
+
+    $row = $this->connection->fetchAssociative(
+        'SELECT * FROM debate_rooms WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect($row['id'])->toBe($kal->debateRoom->id->value())
+        ->and($row['created_at'])->not->toBeNull();
+});
+
+it('reconstructs the debate room when loading the kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $found = $this->repository->getActiveById($kal->id);
+
+    expect($found->debateRoom->id->equals($kal->debateRoom->id))->toBeTrue();
+});
+
+it('reports a kal whose debate room went missing as unreadable', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $this->connection->executeStatement(
+        'DELETE FROM debate_rooms WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect(fn () => $this->repository->getActiveById($kal->id))
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
 });

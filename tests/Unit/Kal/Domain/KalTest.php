@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Kal\Domain\DebateRoom;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
@@ -318,6 +319,7 @@ it('reconstitutes a kal preserving id, invite token and timestamps instead of mi
         null,
         $inviteToken,
         MeetingsMother::empty(),
+        DebateRoom::create(),
         $createdAt,
         $updatedAt,
     );
@@ -348,7 +350,22 @@ it('rejects reconstituting a kal whose persisted clues fall outside its range', 
         null,
         InviteToken::fromString('persisted-token'),
         MeetingsMother::empty(),
+        DebateRoom::create(),
         DateTime::now(),
         DateTime::now(),
     );
 })->throws(KalException::class, 'A clue date range falls outside the kal date range.');
+
+// L'aula és on aterra la participant en entrar al KAL: neix amb ell i no
+// s'afegeix després, com passa amb l'inviteToken.
+it('creates the kal with its debate room', function (): void {
+    $kal = KalMother::create();
+
+    expect($kal->debateRoom->id->value())->toHaveLength(26)
+        ->and($kal->debateRoom->createdAt->value())->not->toBeEmpty();
+});
+
+it('gives every kal its own debate room', function (): void {
+    expect(KalMother::create()->debateRoom->id->value())
+        ->not->toBe(KalMother::create()->debateRoom->id->value());
+});

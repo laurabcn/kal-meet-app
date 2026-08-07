@@ -7,6 +7,7 @@ namespace App\Kal\Infrastructure\Repository\MySQL;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -24,6 +25,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     private const string TABLE_FILES = 'kal_files';
     private const string TABLE_CLUES = 'clues';
     private const string TABLE_MEETINGS = 'meetings';
+    private const string TABLE_DEBATE_ROOMS = 'debate_rooms';
 
     public function __construct(
         public private(set) MySQLRepository $repository,
@@ -35,7 +37,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws Exception
      * @throws KalAlreadyExistsException
-     * @throws KalException
+     * @throws KalStateException
      */
     public function create(Kal $kal): void
     {
@@ -62,25 +64,36 @@ final readonly class KalRepository implements KalRepositoryInterface
                 $connection->insert(self::TABLE_MEETINGS, $meeting);
             }
 
+            // Dins de la mateixa transacció a propòsit: un KAL sense aula no es
+            // pot llegir, o sigui que no pot existir ni un instant.
+            $connection->insert(self::TABLE_DEBATE_ROOMS, $data['debate_room']);
+
             $connection->commit();
         } catch (UniqueConstraintViolationException $e) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();
             }
 
-            throw KalAlreadyExistsException::create();
+            // Només el conflicte d'identitat del KAL és 409. Qualsevol altre
+            // unique (meetings, debate_rooms, …) és estat trencat / 500.
+            if (str_contains($e->getMessage(), 'kals_pkey')) {
+                throw KalAlreadyExistsException::create();
+            }
+
+            throw KalStateException::persistenceFailed($e);
         } catch (\Throwable $e) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();
             }
 
-            throw KalException::persistenceFailed($e);
+            throw KalStateException::persistenceFailed($e);
         }
     }
 
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal
@@ -91,6 +104,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function getActiveById(UlidValue $id): Kal
@@ -101,6 +115,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function findByToken(UlidValue $kalId, InviteToken $inviteToken): Kal
@@ -117,6 +132,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     private function loadActive(UlidValue $id, ?UlidValue $organizerId): Kal
@@ -182,6 +198,14 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->createQueryBuilder()
             ->select('*')
             ->from(self::TABLE_MEETINGS)
+            ->where('kal_id = :kalId')
+            ->setParameter('kalId', $kalId)
+            ->executeQuery()
+            ->fetchAllAssociative();
+        $data['debate_rooms'] = $connection
+            ->createQueryBuilder()
+            ->select('*')
+            ->from(self::TABLE_DEBATE_ROOMS)
             ->where('kal_id = :kalId')
             ->setParameter('kalId', $kalId)
             ->executeQuery()

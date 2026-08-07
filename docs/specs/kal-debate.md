@@ -4,8 +4,13 @@
 > les decisions. Els noms de classe i les rutes que cita són els d’aquell
 > moment i **no** es mantenen al dia.
 >
-> Tancar l’spec no tanca la decisió de producte: el xat segueix sent **candidat
-> a l’MVP**, pendent de les entrevistes (veure CLAUDE.md, «Funcionalitats MVP»).
+> Tancar l’spec no tanca la decisió de producte: el xat (missatges) segueix
+> sent **candidat a l’MVP**, pendent de les entrevistes (veure CLAUDE.md).
+>
+> **Update 2026-08-07:** `CreateKal` ja crea exactament 1 `debate_rooms` a la
+> mateixa transacció que el KAL (`DebateRoom` dins l’agregat). No cal backfill:
+> no hi havia KALs en prod i la taula ja existia a l’esquema. El que queda
+> pendent del xat és `debate_messages` + FE/Realtime, no la fila de l’aula.
 
 ## Naming (EN)
 
@@ -51,10 +56,9 @@ sense construir un servidor de sockets ni allotjar vídeo.
 - **Lectura/escriptura de missatges:** frontend Vue (TypeScript) →
   Supabase (`supabase-js`) amb JWT d’usuària + RLS.
 - **En viu:** Supabase Realtime sobre `debate_messages`.
-- **Creació de l’aula:** diferida. Avui `CreateKal` **no** inserta
-  `debate_room` (xat candidat MVP, pendent de validació). Quan el xat
-  es cablegi: insert al CreateKal + backfill dels KALs existents.
-  Veure [`kal-aggregate-mvp.md`](kal-aggregate-mvp.md).
+- **Creació de l’aula:** fet (2026-08-07). `Kal::create()` / `KalRepository::create()`
+  inserten 1 `debate_rooms` a la mateixa TX. Històricament aquest spec la deixava
+  diferida + backfill; això ja no aplica (veure update del capçalera).
 - **Imatges de missatge:** upload al bucket privat (p.ex. `kal-photos`,
   path tipus `{kal_id}/debat/{message_id}.webp`), compressió al client;
   el missatge guarda `image_path` (o equivalent).
@@ -127,9 +131,8 @@ Almenys un de `body` / `image_path` no buit.
 
 ## Acceptance criteria
 
-- [ ] Migració: `debate_rooms`, `debate_messages` (+ RLS + publicació
-      Realtime).
-- [ ] CreateKal deixa exactament 1 room per KAL.
+- [x] Migració: `debate_rooms` (+ RLS). `debate_messages` encara pendent.
+- [x] CreateKal deixa exactament 1 room per KAL.
 - [ ] Membres poden enviar text i imatges; no-membres no.
 - [ ] Historial carregable (paginació cap enrere acceptable).
 - [ ] Entrega en viu via Realtime (o refetch documentat com a fallback).
@@ -187,8 +190,8 @@ Almenys un de `body` / `image_path` no buit.
 - Dues sessions membre: text + imatge en viu.
 - Tercera sessió no membre: sense lectura.
 - Hide: missatge desapareix per membres.
-- Quan el xat es cablegi: CreateKal assert 1 `debate_room` + backfill
-  dels KALs creats sense aula.
+- CreateKal: exactament 1 `debate_rooms` per KAL (ja cobert als tests
+  d’integració / hydrator). Sense backfill.
 - Prova manual “directe”: embed/enllaç + pregunta al debate a la mateixa
   pantalla.
 

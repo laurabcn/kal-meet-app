@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
@@ -26,7 +27,8 @@ beforeEach(function (): void {
  *     locales: list<array{kal_id: string, locale: string}>,
  *     files: list<array<string, mixed>>,
  *     clues: list<array<string, mixed>>,
- *     meetings: list<array<string, mixed>>
+ *     meetings: list<array<string, mixed>>,
+ *     debate_room: array<string, mixed>
  * } $extracted
  *
  * @return array<string, mixed>
@@ -39,6 +41,9 @@ function hydratePayloadFromExtract(array $extracted): array
         'files' => $extracted['files'],
         'clues' => $extracted['clues'],
         'meetings' => $extracted['meetings'],
+        // El repositori la llegeix com a llista (un SELECT per kal_id) encara
+        // que a l'MVP només n'hi hagi una.
+        'debate_rooms' => [$extracted['debate_room']],
     ];
 }
 
@@ -102,7 +107,7 @@ it('extracts the kal row and child rows ready for insert', function (): void {
 
 it('rejects extract of a non-kal object', function (): void {
     expect(fn () => $this->hydrator->extract(new stdClass()))
-        ->toThrow(KalException::class, 'The value is not a valid kal.');
+        ->toThrow(KalStateException::class, 'The value is not a valid kal.');
 });
 
 it('round-trips a full aggregate through extract and hydrate', function (): void {
@@ -187,7 +192,7 @@ it('throws when a clue row has no matching meeting', function (): void {
     ));
 
     expect(fn () => $this->hydrator->hydrate($payload))
-        ->toThrow(KalException::class, 'A clue is missing its required meeting.');
+        ->toThrow(KalStateException::class, 'A clue is missing its required meeting.');
 });
 
 it('throws when locales are empty', function (): void {
@@ -215,4 +220,33 @@ it('throws when id is not a valid ulid', function (): void {
 
     expect(fn () => $this->hydrator->hydrate($payload))
         ->toThrow(InvalidArgumentException::class);
+});
+
+it('extracts the debate room row ready for insert', function (): void {
+    $kal = KalMother::create();
+
+    $extracted = (new KalHydrator())->extract($kal);
+
+    expect($extracted['debate_room'])->toMatchArray([
+        'id' => $kal->debateRoom->id->value(),
+        'kal_id' => $kal->id->value(),
+    ])->and($extracted['debate_room']['created_at'])->not->toBeEmpty();
+});
+
+// Un KAL persistit sense aula és il·legible a propòsit: val més fallar fort que
+// servir a la participant un KAL sense la pantalla on ha d\'aterrar.
+it('refuses to hydrate a kal with no debate room', function (): void {
+    $payload = hydratePayloadFromExtract((new KalHydrator())->extract(KalMother::create()));
+    $payload['debate_rooms'] = [];
+
+    expect(fn () => (new KalHydrator())->hydrate($payload))
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
+});
+
+it('refuses to hydrate a kal with more than one debate room', function (): void {
+    $payload = hydratePayloadFromExtract((new KalHydrator())->extract(KalMother::create()));
+    $payload['debate_rooms'][] = $payload['debate_rooms'][0];
+
+    expect(fn () => (new KalHydrator())->hydrate($payload))
+        ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
 });

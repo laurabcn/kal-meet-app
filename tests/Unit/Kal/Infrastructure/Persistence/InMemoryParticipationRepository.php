@@ -6,6 +6,7 @@ namespace Tests\Unit\Kal\Infrastructure\Persistence;
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Repository\ParticipationRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -15,9 +16,9 @@ final class InMemoryParticipationRepository implements ParticipationRepositoryIn
     /** @var array<string, Participation> keyed by kalId\0userId */
     private array $participations = [];
 
-    private ?KalException $failure = null;
+    private ?KalStateException $failure = null;
 
-    public function failWith(KalException $failure): void
+    public function failWith(KalStateException $failure): void
     {
         $this->failure = $failure;
     }

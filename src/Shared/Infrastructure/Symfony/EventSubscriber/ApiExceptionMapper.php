@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Infrastructure\Symfony\EventSubscriber;
 
 use App\Shared\Domain\Exception\ConflictException;
+use App\Shared\Domain\Exception\CorruptedStateException;
 use App\Shared\Domain\Exception\DomainException;
 use App\Shared\Domain\Exception\ForbiddenException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
@@ -85,7 +86,10 @@ final class ApiExceptionMapper
             return new MappedHttpError(Response::HTTP_CONFLICT, $code, $message);
         }
 
-        if (str_ends_with($code, '_persistence_failed')) {
+        // Per TIPUS i no pel text del codi (CLAUDE.md). El que arriba aquí com a
+        // CorruptedStateException no és culpa de qui ha fet la petició, i el 500
+        // és també el que fa que ApiExceptionSubscriber ho logui i ho alerti.
+        if ($exception instanceof CorruptedStateException) {
             return new MappedHttpError(Response::HTTP_INTERNAL_SERVER_ERROR, $code, $message);
         }
 

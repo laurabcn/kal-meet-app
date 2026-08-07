@@ -47,25 +47,4 @@ final class KalException extends DomainException
     {
         return new self('kal_meeting_invalid_timezone', 'The meeting timezone is invalid.');
     }
-
-    public static function inviteTokenGenerationFailed(): self
-    {
-        return new self('kal_invite_token_generation_failed', 'Failed to generate an invite token.');
-    }
-
-    public static function persistenceFailed(\Throwable $cause): self
-    {
-        return new self('kal_persistence_failed', 'Failed to persist the kal.', 0, $cause);
-    }
-
-    /** A persisted clue with no meeting row would break the "meeting obligatòria" invariant. */
-    public static function missingClueMeeting(): self
-    {
-        return new self('kal_clue_meeting_missing', 'A clue is missing its required meeting.');
-    }
-
-    public static function invalidKal(): self
-    {
-        return new self('kal_invalid', 'The value is not a valid kal.');
-    }
 }
