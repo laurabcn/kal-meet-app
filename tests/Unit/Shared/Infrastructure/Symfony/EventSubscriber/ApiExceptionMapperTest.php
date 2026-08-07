@@ -6,6 +6,7 @@ use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Domain\Exception\ConflictException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\Exception\NotFoundException;
@@ -29,7 +30,7 @@ it('maps domain invariants to 400 with message and stable code', function (): vo
 });
 
 it('maps persistence failures to 500 with message and stable code', function (): void {
-    $mapped = $this->mapper->map(KalException::persistenceFailed(new RuntimeException('db down')));
+    $mapped = $this->mapper->map(KalStateException::persistenceFailed(new RuntimeException('db down')));
 
     expect($mapped)->not->toBeNull()
         ->and($mapped->statusCode)->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
@@ -98,4 +99,34 @@ it('maps unknown throwables to internal_error with a readable message', function
         ->and($mapped->statusCode)->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
         ->and($mapped->errorCode)->toBe('internal_error')
         ->and($mapped->message)->toBe('An internal error occurred.');
+});
+
+// El status el decideix el TIPUS, no el text del codi. Abans hi havia un
+// `str_ends_with($code, '_persistence_failed')`, i per això tot el que era
+// culpa del servidor sense aquell sufix sortia com a 400 — i, com que
+// ApiExceptionSubscriber només registra a partir de 500, en silenci.
+it('maps every corrupted-state error to 500, whatever its code', function (
+    KalStateException $exception,
+    string $code,
+): void {
+    $mapped = $this->mapper->map($exception);
+
+    expect($mapped)->not->toBeNull()
+        ->and($mapped->statusCode)->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
+        ->and($mapped->errorCode)->toBe($code);
+})->with([
+    'debate room gone' => [fn () => KalStateException::missingDebateRoom(), 'kal_debate_room_missing'],
+    'clue with no meeting' => [fn () => KalStateException::missingClueMeeting(), 'kal_clue_meeting_missing'],
+    'not a kal' => [fn () => KalStateException::invalidKal(), 'kal_invalid'],
+    'no entropy' => [fn () => KalStateException::inviteTokenGenerationFailed(), 'kal_invite_token_generation_failed'],
+]);
+
+// La contrapartida: el que SÍ que pot arreglar qui fa la petició segueix sent
+// un 400, i no ha d'omplir el log ni Slack.
+it('keeps client-fixable domain errors on 400', function (): void {
+    $mapped = $this->mapper->map(KalException::noLocalesEnabled());
+
+    expect($mapped)->not->toBeNull()
+        ->and($mapped->statusCode)->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($mapped->errorCode)->toBe('kal_no_locales_enabled');
 });

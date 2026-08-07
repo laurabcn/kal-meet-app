@@ -7,6 +7,7 @@ use App\Kal\Application\Command\Participation\CreateParticipationCommandHandler;
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Service\JoinPolicy;
 use App\Shared\Domain\Exception\InvalidArgumentException;
@@ -123,14 +124,14 @@ it('propagates a participation persistence failure', function (): void {
     $kal = KalMother::create();
     $this->kalRepository->create($kal);
     $this->participationRepository->failWith(
-        KalException::persistenceFailed(new RuntimeException('connection lost')),
+        KalStateException::persistenceFailed(new RuntimeException('connection lost')),
     );
 
     expect(fn () => ($this->handler)(new CreateParticipationCommand(
         $kal->id->value(),
         $kal->inviteToken->value(),
         StubTokenHandler::USER_ID,
-    )))->toThrow(KalException::class, 'Failed to persist the kal.');
+    )))->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });
 
 it('rejects a kal id that is not a ulid', function (): void {

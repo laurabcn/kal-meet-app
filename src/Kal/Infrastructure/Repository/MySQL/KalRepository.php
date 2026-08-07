@@ -7,6 +7,7 @@ namespace App\Kal\Infrastructure\Repository\MySQL;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -37,6 +38,7 @@ final readonly class KalRepository implements KalRepositoryInterface
      * @throws Exception
      * @throws KalAlreadyExistsException
      * @throws KalException
+     * @throws KalStateException
      */
     public function create(Kal $kal): void
     {
@@ -79,13 +81,14 @@ final readonly class KalRepository implements KalRepositoryInterface
                 $connection->rollBack();
             }
 
-            throw KalException::persistenceFailed($e);
+            throw KalStateException::persistenceFailed($e);
         }
     }
 
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal
@@ -96,6 +99,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function getActiveById(UlidValue $id): Kal
@@ -106,6 +110,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     public function findByToken(UlidValue $kalId, InviteToken $inviteToken): Kal
@@ -122,6 +127,7 @@ final readonly class KalRepository implements KalRepositoryInterface
     /**
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws Exception
      */
     private function loadActive(UlidValue $id, ?UlidValue $organizerId): Kal

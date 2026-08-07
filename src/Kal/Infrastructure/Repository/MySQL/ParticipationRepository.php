@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Kal\Infrastructure\Repository\MySQL;
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
-use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Repository\ParticipationRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -23,7 +23,7 @@ final readonly class ParticipationRepository implements ParticipationRepositoryI
 
     /**
      * @throws KalAlreadyMemberException
-     * @throws KalException
+     * @throws KalStateException
      */
     public function create(Participation $participation): void
     {
@@ -39,11 +39,13 @@ final readonly class ParticipationRepository implements ParticipationRepositoryI
             // l'`exists()` del handler i només una guanya l'índex únic.
             throw KalAlreadyMemberException::create();
         } catch (\Throwable $e) {
-            throw KalException::persistenceFailed($e);
+            throw KalStateException::persistenceFailed($e);
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalStateException
+     */
     public function exists(UlidValue $kalId, UlidValue $userId): bool
     {
         try {
@@ -59,7 +61,7 @@ final readonly class ParticipationRepository implements ParticipationRepositoryI
                 ->executeQuery()
                 ->fetchOne();
         } catch (\Throwable $e) {
-            throw KalException::persistenceFailed($e);
+            throw KalStateException::persistenceFailed($e);
         }
 
         return false !== $id && null !== $id;

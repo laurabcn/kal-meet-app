@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
@@ -106,7 +107,7 @@ it('extracts the kal row and child rows ready for insert', function (): void {
 
 it('rejects extract of a non-kal object', function (): void {
     expect(fn () => $this->hydrator->extract(new stdClass()))
-        ->toThrow(KalException::class, 'The value is not a valid kal.');
+        ->toThrow(KalStateException::class, 'The value is not a valid kal.');
 });
 
 it('round-trips a full aggregate through extract and hydrate', function (): void {
@@ -191,7 +192,7 @@ it('throws when a clue row has no matching meeting', function (): void {
     ));
 
     expect(fn () => $this->hydrator->hydrate($payload))
-        ->toThrow(KalException::class, 'A clue is missing its required meeting.');
+        ->toThrow(KalStateException::class, 'A clue is missing its required meeting.');
 });
 
 it('throws when locales are empty', function (): void {
@@ -239,5 +240,5 @@ it('refuses to hydrate a kal with no debate room', function (): void {
     $payload['debate_rooms'] = [];
 
     expect(fn () => (new KalHydrator())->hydrate($payload))
-        ->toThrow(KalException::class, 'The kal is missing its debate room.');
+        ->toThrow(KalStateException::class, 'The kal is missing its debate room.');
 });

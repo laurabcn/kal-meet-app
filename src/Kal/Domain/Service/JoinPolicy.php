@@ -6,6 +6,7 @@ namespace App\Kal\Domain\Service;
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\ParticipationRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -26,6 +27,7 @@ final readonly class JoinPolicy
     /**
      * @throws KalAlreadyMemberException
      * @throws KalException
+     * @throws KalStateException
      */
     public function ensureCanJoin(Kal $kal, UlidValue $userId): void
     {

@@ -7,6 +7,7 @@ namespace App\Kal\Application\Command\Participation;
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Participation;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -31,6 +32,7 @@ final readonly class CreateParticipationCommandHandler implements CommandHandler
      * @throws KalAlreadyMemberException
      * @throws KalNotFoundException
      * @throws KalException
+     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     public function __invoke(CreateParticipationCommand $command): void

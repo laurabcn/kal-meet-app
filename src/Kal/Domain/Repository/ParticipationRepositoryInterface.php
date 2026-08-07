@@ -6,6 +6,7 @@ namespace App\Kal\Domain\Repository;
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Shared\Domain\ValueObject\UlidValue;
 
@@ -17,9 +18,14 @@ interface ParticipationRepositoryInterface
      *
      * @throws KalAlreadyMemberException
      * @throws KalException
+     * @throws KalStateException
      */
     public function create(Participation $participation): void;
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     public function exists(UlidValue $kalId, UlidValue $userId): bool;
 }

@@ -9,6 +9,7 @@ use App\Kal\Domain\Clues;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\File;
 use App\Kal\Domain\FileExtension;
 use App\Kal\Domain\Files;
@@ -38,6 +39,7 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
     /**
      * @throws KalAlreadyExistsException
      * @throws KalException
+     * @throws KalStateException
      * @throws InvalidArgumentException
      * @throws KalFileException
      */
@@ -64,6 +66,7 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
      * @param list<mixed> $locales
      *
      * @throws KalException
+     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     private static function buildLocales(array $locales): Locales
@@ -107,6 +110,7 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
      * @param list<mixed> $meetings
      *
      * @throws KalException
+     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     private static function buildMeetings(array $meetings): Meetings

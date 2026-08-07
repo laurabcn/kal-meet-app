@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalAlreadyMemberException;
-use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
@@ -75,7 +75,7 @@ it('reports an unknown user as a persistence failure', function (): void {
     );
 
     expect(fn () => $this->participationRepository->create($participation))
-        ->toThrow(KalException::class, 'Failed to persist the kal.');
+        ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });
 
 it('reports exists as false when there is no participation', function (): void {

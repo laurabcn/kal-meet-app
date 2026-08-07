@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Kal\Domain;
 
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 
 final readonly class InviteToken
 {
@@ -12,7 +13,10 @@ final readonly class InviteToken
     {
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     */
     public static function fromString(string $value): self
     {
         if ('' === $value) {
@@ -27,13 +31,16 @@ final readonly class InviteToken
         return new self($parseString);
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     */
     public static function generate(): self
     {
         try {
             $token = bin2hex(random_bytes(16));
         } catch (\Random\RandomException) {
-            throw KalException::inviteTokenGenerationFailed();
+            throw KalStateException::inviteTokenGenerationFailed();
         }
 
         return new self($token);

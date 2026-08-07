@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Kal\Domain;
 
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\Model\AggregateRoot;
 use App\Shared\Domain\ValueObject\DateTime;
@@ -34,6 +35,7 @@ final class Kal extends AggregateRoot
 
     /**
      * @throws KalException
+     * @throws KalStateException
      * @throws InvalidArgumentException
      */
     public static function create(
@@ -76,7 +78,11 @@ final class Kal extends AggregateRoot
         );
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     public static function reconstitute(
         UlidValue $id,
         UlidValue $organizerId,
@@ -119,7 +125,11 @@ final class Kal extends AggregateRoot
         );
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     public function addClue(Clue $clue): void
     {
         self::guardClueWithinRange($clue, $this->startsOn, $this->endsOn);
@@ -134,7 +144,11 @@ final class Kal extends AggregateRoot
         $this->meetings->add($meeting);
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardAgainstInvalidDateRange(DateTime $startsOn, ?DateTime $endsOn): void
     {
         if (null !== $endsOn && !$endsOn->isAfter($startsOn)) {
@@ -142,7 +156,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardCluesWithinRange(Clues $clues, DateTime $startsOn, ?DateTime $endsOn): void
     {
         foreach ($clues->all() as $clue) {
@@ -150,7 +168,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardFilesLocaleEnabled(Files $files, Locales $locales): void
     {
         foreach ($files->all() as $file) {
@@ -158,7 +180,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardCluesFileLocaleEnabled(Clues $clues, Locales $locales): void
     {
         foreach ($clues->all() as $clue) {
@@ -166,7 +192,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardFileLocaleEnabled(File $file, Locales $locales): void
     {
         if (!$locales->contains($file->locale)) {
@@ -174,7 +204,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardCluesLocaleEnabled(Clues $clues, Locales $locales): void
     {
         foreach ($clues->all() as $clue) {
@@ -182,7 +216,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardClueLocaleEnabled(Clue $clue, Locales $locales): void
     {
         if (!$locales->contains($clue->locale)) {
@@ -190,7 +228,11 @@ final class Kal extends AggregateRoot
         }
     }
 
-    /** @throws KalException */
+    /**
+     * @throws KalException
+     * @throws KalStateException
+     * @throws KalStateException
+     */
     private static function guardClueWithinRange(Clue $clue, DateTime $startsOn, ?DateTime $endsOn): void
     {
         if ($clue->startsOn->isBefore($startsOn)) {

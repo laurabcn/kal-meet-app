@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
-use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
@@ -177,7 +177,7 @@ it('reports a missing organizer as a persistence failure, not a crash', function
     $kal = KalMother::create(organizerId: UlidValue::generate());
 
     expect(fn () => $this->repository->create($kal))
-        ->toThrow(KalException::class, 'Failed to persist the kal.');
+        ->toThrow(KalStateException::class, 'Failed to persist the kal.');
 });
 
 it('throws kal_not_found when no kal exists for the given id', function (): void {
@@ -327,5 +327,5 @@ it('reports a kal whose debate room went missing as unreadable', function (): vo
     );
 
     expect(fn () => $this->repository->getActiveById($kal->id))
-        ->toThrow(KalException::class, 'The kal is missing its debate room.');
+        ->toThrow(KalStateException::class, 'The kal is missing its debate room.');
 });
