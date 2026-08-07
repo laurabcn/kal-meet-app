@@ -49,6 +49,28 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /**
      * @throws KalNotFoundException
+     * @throws KalStateException
+     */
+    public function update(Kal $kal): void
+    {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        $id = $kal->id->value();
+        if (isset($this->deletedIds[$id]) || !isset($this->kals[$id])) {
+            throw KalNotFoundException::create();
+        }
+
+        if (!$this->kals[$id]->organizerId->equals($kal->organizerId)) {
+            throw KalNotFoundException::create();
+        }
+
+        $this->kals[$id] = $kal;
+    }
+
+    /**
+     * @throws KalNotFoundException
      * @throws KalException
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal
@@ -68,10 +90,6 @@ final class InMemoryKalRepository implements KalRepositoryInterface
      */
     public function getActiveById(UlidValue $id): Kal
     {
-        if (null !== $this->failure) {
-            throw $this->failure;
-        }
-
         $key = $id->value();
 
         if (isset($this->deletedIds[$key])) {

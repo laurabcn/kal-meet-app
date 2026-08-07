@@ -21,6 +21,15 @@ interface KalRepositoryInterface
     public function create(Kal $kal): void;
 
     /**
+     * Persists scalar Kal fields already mutated on the aggregate.
+     * Does not touch locales, files, clues, meetings or debate rooms.
+     *
+     * @throws KalNotFoundException
+     * @throws KalStateException
+     */
+    public function update(Kal $kal): void;
+
+    /**
      * @throws KalNotFoundException
      * @throws KalException
      * @throws KalStateException

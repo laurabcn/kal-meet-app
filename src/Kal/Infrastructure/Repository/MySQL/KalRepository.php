@@ -92,6 +92,50 @@ final readonly class KalRepository implements KalRepositoryInterface
 
     /**
      * @throws KalNotFoundException
+     * @throws KalStateException
+     * @throws Exception
+     */
+    public function update(Kal $kal): void
+    {
+        $connection = $this->repository->connection();
+        $row = $this->hydrator->extract($kal)['kal'];
+
+        try {
+            $affected = $connection->executeStatement(
+                'UPDATE '.self::TABLE_NAME.'
+                 SET name = :name,
+                     description = :description,
+                     starts_on = :starts_on,
+                     ends_on = :ends_on,
+                     cover_path = :cover_path,
+                     updated_at = :updated_at
+                 WHERE id = :id
+                   AND organizer_id = :organizer_id
+                   AND deleted_at IS NULL',
+                [
+                    'name' => $row['name'],
+                    'description' => $row['description'],
+                    'starts_on' => $row['starts_on'],
+                    'ends_on' => $row['ends_on'],
+                    'cover_path' => $row['cover_path'],
+                    'updated_at' => $row['updated_at'],
+                    'id' => $row['id'],
+                    'organizer_id' => $row['organizer_id'],
+                ],
+            );
+
+            if (0 === $affected) {
+                throw KalNotFoundException::create();
+            }
+        } catch (KalNotFoundException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws KalNotFoundException
      * @throws KalException
      * @throws KalStateException
      * @throws Exception

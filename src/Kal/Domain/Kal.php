@@ -17,19 +17,19 @@ final class Kal extends AggregateRoot
     private function __construct(
         public private(set) readonly UlidValue $id,
         public private(set) readonly UlidValue $organizerId,
-        public private(set) readonly NonEmptyStringValue $name,
-        public private(set) readonly ?NonEmptyStringValue $description,
+        public private(set) NonEmptyStringValue $name,
+        public private(set) ?NonEmptyStringValue $description,
         public private(set) readonly Files $files,
         public private(set) readonly Clues $clues,
         public private(set) readonly Locales $locales,
-        public private(set) readonly DateTime $startsOn,
-        public private(set) readonly ?DateTime $endsOn,
-        public private(set) readonly ?string $coverPath,
+        public private(set) DateTime $startsOn,
+        public private(set) ?DateTime $endsOn,
+        public private(set) ?string $coverPath,
         public private(set) readonly InviteToken $inviteToken,
         public private(set) readonly Meetings $meetings,
         public private(set) readonly DebateRoom $debateRoom,
         public private(set) readonly DateTime $createdAt,
-        public private(set) readonly DateTime $updatedAt,
+        public private(set) DateTime $updatedAt,
     ) {
     }
 
@@ -134,6 +134,31 @@ final class Kal extends AggregateRoot
     public function addMeeting(Meeting $meeting): void
     {
         $this->meetings->add($meeting);
+    }
+
+    /**
+     * Replaces the editable scalar fields of the Kal. Caller passes the full
+     * desired values (merge of current + PATCH changes).
+     *
+     * @throws KalException
+     * @throws InvalidArgumentException
+     */
+    public function updateDetails(
+        NonEmptyStringValue $name,
+        ?NonEmptyStringValue $description,
+        DateTime $startsOn,
+        ?DateTime $endsOn,
+        ?string $coverPath,
+    ): void {
+        self::guardAgainstInvalidDateRange($startsOn, $endsOn);
+        self::guardCluesWithinRange($this->clues, $startsOn, $endsOn);
+
+        $this->name = $name;
+        $this->description = $description;
+        $this->startsOn = $startsOn;
+        $this->endsOn = $endsOn;
+        $this->coverPath = $coverPath;
+        $this->updatedAt = DateTime::now();
     }
 
     /** @throws KalException */
