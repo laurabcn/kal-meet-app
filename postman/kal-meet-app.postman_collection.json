@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "KAL Meet App — Auth & Kal",
-    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}` and `POST /kal/participation`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set for participation.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` must **not** appear in the body — it comes from the token.",
+    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}`, `PATCH /kal/{id}` and `POST /kal/participation`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set; then **PATCH /kal/{id}** to smoke the update.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` / `inviteToken` must **not** appear in create or PATCH bodies — organizer comes from the token; invite rotation is a later endpoint.\n\n## PATCH /kal/{id}\nPartial update of scalar fields only: `name`, `description`, `startsOn`, `endsOn`, `coverPath`. Omit = leave; `null` on nullable fields = clear. Success → `204` empty body.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -484,6 +484,267 @@
             "header": [],
             "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
             "description": "Unknown id (or not organizer / soft-deleted) → 404 `Kal not found.`. Same body for all three cases."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — update (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('kalId') && !pm.environment.get('kalId')) {",
+                  "  console.warn('Run POST /kal — create first so kalId is set.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('empty body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"KAL de tardor (patched)\",\n  \"description\": \"Actualitzat des de Postman\",\n  \"endsOn\": \"2026-10-15 00:00:00\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Happy path. Partial PATCH of scalar fields (`name`, `description`, `startsOn`, `endsOn`, `coverPath`). Organizer-only; success → 204 empty body. Requires `kalId` from create."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — clear nullable fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('empty body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": null,\n  \"endsOn\": null,\n  \"coverPath\": null\n}"
+            },
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "`null` on nullable fields clears them. Omitted fields stay untouched."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — body with organizerId (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The request payload is invalid.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('The request payload is invalid.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\",\n  \"organizerId\": \"01J5M6XQBR4GTYHN8KZXP0F1W2\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "`organizerId` / `inviteToken` / nested resources in the body → 400."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — invalid date range (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('kal_invalid_date_range', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.eql('The kal end date must be after the start date.');",
+                  "  pm.expect(body.code).to.eql('kal_invalid_date_range');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endsOn\": \"2020-01-01 00:00:00\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Domain invariant: endsOn must be after startsOn → 400 `kal_invalid_date_range`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id} — not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\"\n}"
+            },
+            "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
+            "description": "Unknown id (or not organizer / soft-deleted) → 404 `Kal not found.`."
           },
           "response": []
         },

@@ -369,3 +369,80 @@ it('gives every kal its own debate room', function (): void {
     expect(KalMother::create()->debateRoom->id->value())
         ->not->toBe(KalMother::create()->debateRoom->id->value());
 });
+
+it('updates editable scalar fields and bumps updatedAt', function (): void {
+    $kal = KalMother::create(
+        name: NonEmptyStringValue::create('Old name'),
+        description: NonEmptyStringValue::create('Old description'),
+        startsOn: DateTime::create('2026-08-01 00:00:00'),
+        endsOn: DateTime::create('2026-09-01 00:00:00'),
+        coverPath: 'old/cover.webp',
+    );
+    $previousUpdatedAt = $kal->updatedAt->value();
+
+    $kal->updateDetails(
+        NonEmptyStringValue::create('New name'),
+        NonEmptyStringValue::create('New description'),
+        DateTime::create('2026-08-05 00:00:00'),
+        DateTime::create('2026-09-05 00:00:00'),
+        'new/cover.webp',
+    );
+
+    expect($kal->name->value())->toBe('New name')
+        ->and($kal->description?->value())->toBe('New description')
+        ->and($kal->startsOn->value())->toBe('2026-08-05 00:00:00')
+        ->and($kal->endsOn?->value())->toBe('2026-09-05 00:00:00')
+        ->and($kal->coverPath)->toBe('new/cover.webp')
+        ->and($kal->updatedAt->value())->toBeGreaterThanOrEqual($previousUpdatedAt);
+});
+
+it('allows clearing nullable scalar fields on update', function (): void {
+    $kal = KalMother::create(
+        description: NonEmptyStringValue::create('Has description'),
+        endsOn: DateTime::create('2026-09-01 00:00:00'),
+        coverPath: 'cover.webp',
+    );
+
+    $kal->updateDetails(
+        $kal->name,
+        null,
+        $kal->startsOn,
+        null,
+        null,
+    );
+
+    expect($kal->description)->toBeNull()
+        ->and($kal->endsOn)->toBeNull()
+        ->and($kal->coverPath)->toBeNull();
+});
+
+it('rejects an invalid date range on update', function (): void {
+    $kal = KalMother::create();
+
+    $kal->updateDetails(
+        $kal->name,
+        $kal->description,
+        DateTime::create('2026-08-01 00:00:00'),
+        DateTime::create('2026-07-01 00:00:00'),
+        $kal->coverPath,
+    );
+})->throws(KalException::class, 'The kal end date must be after the start date.');
+
+it('rejects shrinking the kal range below an existing clue', function (): void {
+    $clue = ClueMother::create(
+        startsOn: DateTime::create('2026-08-01 00:00:00'),
+        endsOn: DateTime::create('2026-08-15 00:00:00'),
+    );
+    $kal = KalMother::create(
+        clues: CluesMother::of($clue),
+        endsOn: DateTime::create('2026-09-01 00:00:00'),
+    );
+
+    $kal->updateDetails(
+        $kal->name,
+        $kal->description,
+        $kal->startsOn,
+        DateTime::create('2026-08-10 00:00:00'),
+        $kal->coverPath,
+    );
+})->throws(KalException::class, 'A clue date range falls outside the kal date range.');

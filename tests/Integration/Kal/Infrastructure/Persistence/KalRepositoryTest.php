@@ -7,6 +7,8 @@ use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
+use App\Shared\Domain\ValueObject\DateTime;
+use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
 use Psr\Log\NullLogger;
@@ -327,4 +329,69 @@ it('reports a kal whose debate room went missing as unreadable', function (): vo
 
     expect(fn () => $this->repository->getActiveById($kal->id))
         ->toThrow(KalStateException::class, 'The kal does not have exactly one debate room.');
+});
+
+it('updates scalar kal columns without touching child tables', function (): void {
+    $kal = KalMother::create(
+        files: FilesMother::of(FileMother::create()),
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        endsOn: DateTime::create('2026-09-01 00:00:00'),
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+    $this->repository->create($kal);
+
+    // Dates stay within the existing clue range; only scalars that don't
+    // shrink the window need asserting here.
+    $kal->updateDetails(
+        NonEmptyStringValue::create('Updated name'),
+        NonEmptyStringValue::create('Updated description'),
+        DateTime::create('2026-07-15 00:00:00'),
+        DateTime::create('2026-09-15 00:00:00'),
+        'updated/cover.webp',
+    );
+    $this->repository->update($kal);
+
+    $row = $this->connection->fetchAssociative('SELECT * FROM kals WHERE id = :id', ['id' => $kal->id->value()]);
+    $id = $kal->id->value();
+    $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
+
+    expect($row['name'])->toBe('Updated name')
+        ->and($row['description'])->toBe('Updated description')
+        ->and($row['cover_path'])->toBe('updated/cover.webp')
+        ->and($row['invite_token'])->toBe($kal->inviteToken->value())
+        ->and($count('SELECT count(*) FROM kal_locales WHERE kal_id = :id'))->toBe(2)
+        ->and($count('SELECT count(*) FROM kal_files WHERE kal_id = :id'))->toBe(1)
+        ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(1)
+        ->and($count('SELECT count(*) FROM meetings WHERE kal_id = :id'))->toBe(2)
+        ->and($count('SELECT count(*) FROM debate_rooms WHERE kal_id = :id'))->toBe(1);
+
+    $found = $this->repository->findById($kal->id, $this->organizerId);
+    expect($found->name->value())->toBe('Updated name')
+        ->and($found->description?->value())->toBe('Updated description')
+        ->and($found->startsOn->value())->toBe('2026-07-15 00:00:00')
+        ->and($found->endsOn?->value())->toBe('2026-09-15 00:00:00')
+        ->and($found->coverPath)->toBe('updated/cover.webp')
+        ->and($found->updatedAt->value())->toBe($kal->updatedAt->value());
+});
+
+it('throws kal_not_found when updating a soft-deleted kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $this->connection->executeStatement(
+        'UPDATE kals SET deleted_at = now() WHERE id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    $kal->updateDetails(
+        NonEmptyStringValue::create('Should fail'),
+        $kal->description,
+        $kal->startsOn,
+        $kal->endsOn,
+        $kal->coverPath,
+    );
+
+    expect(fn () => $this->repository->update($kal))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
 });
