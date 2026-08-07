@@ -93,8 +93,41 @@ At minimum, a full run covers:
 6. **Persistence** — query Postgres and confirm the rows really landed, with
    their timestamps non-null:
    `docker compose run --rm -T app php -r '$c=new PDO("pgsql:host=host.docker.internal;port=54322;dbname=postgres","postgres","postgres"); …'`
+7. **The server-fault contract** — see below.
 
 If a route exists that none of the above covers, cover it and say you did.
+
+### The server-fault contract
+
+When the failure is **ours**, not the caller's, the response must be **5xx** and
+the failure must **appear in the log**. Those two are the same check, because
+`ApiExceptionSubscriber` only writes a log line and fires the Slack alert from
+500 up: a server fault reported as 4xx is also a silent one. This exact bug
+shipped once — an aggregate with a missing row answered `400`, telling the
+organizer her request was bad, and left no trace anywhere.
+
+These paths cannot be reached through the API by design, so provoke one: create
+a throwaway KAL, break it with SQL, call the endpoint, then put it back.
+
+```bash
+# 1. create a KAL through the API, keep its id
+# 2. break it
+docker compose run --rm -T app php -r '$c = new PDO(…); $c->exec("delete from debate_rooms where kal_id=\$\$<id>\$\$");'
+# 3. GET /kal/<id> as the organizer
+#    expect 500 + code kal_debate_room_missing  (a 400 here is the bug)
+# 4. it must be in the log
+docker compose logs app --since 60s | grep kal_debate_room_missing
+# 5. restore: re-run the statement in the backfill migration
+```
+
+**Always restore what you broke** and say in the report that you did. Mutating a
+row to probe an invariant is allowed; leaving it broken is not.
+
+The errors in this category are the ones typed `CorruptedStateException` —
+today `kal_debate_room_missing`, `kal_clue_meeting_missing`, `kal_invalid` and
+`kal_invite_token_generation_failed`. Anything **client-fixable** stays 4xx and
+must **not** be logged: a wrong invite token, a bad payload, an expired session
+are normal traffic, and alerting on them buries the real failures.
 
 ## Known by design — do not report as defects
 
