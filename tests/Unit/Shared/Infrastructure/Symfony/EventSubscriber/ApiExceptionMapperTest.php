@@ -8,10 +8,12 @@ use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Domain\Exception\ConflictException;
+use App\Shared\Domain\Exception\CorruptedStateException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\Exception\NotFoundException;
 use App\Shared\Infrastructure\Symfony\EventSubscriber\ApiExceptionMapper;
 use App\Shared\Infrastructure\Symfony\Security\Exception\MissingTokenException;
+use App\User\Domain\Exception\UserException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 
@@ -29,14 +31,32 @@ it('maps domain invariants to 400 with message and stable code', function (): vo
         ->and($mapped->message)->toBe('The kal end date must be after the start date.');
 });
 
-it('maps persistence failures to 500 with message and stable code', function (): void {
-    $mapped = $this->mapper->map(KalStateException::persistenceFailed(new RuntimeException('db down')));
+it('maps persistence failures to 500 with message and stable code', function (
+    CorruptedStateException $exception,
+    string $code,
+    string $message,
+): void {
+    $mapped = $this->mapper->map($exception);
 
     expect($mapped)->not->toBeNull()
         ->and($mapped->statusCode)->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
-        ->and($mapped->errorCode)->toBe('kal_persistence_failed')
-        ->and($mapped->message)->toBe('Failed to persist the kal.');
-});
+        ->and($mapped->errorCode)->toBe($code)
+        ->and($mapped->message)->toBe($message);
+})->with([
+    'kal' => [
+        fn () => KalStateException::persistenceFailed(new RuntimeException('db down')),
+        'kal_persistence_failed',
+        'Failed to persist the kal.',
+    ],
+    // Regressió: sense CorruptedStateException a UserException, el canvi de
+    // str_ends_with → instanceof tornava a silenciar els errors de perfil
+    // (400, sense log ni Slack).
+    'user' => [
+        fn () => UserException::persistenceFailed(new RuntimeException('db down')),
+        'user_persistence_failed',
+        'Failed to load the user profile.',
+    ],
+]);
 
 it('maps ConflictException to 409 using the type, not the message', function (ConflictException $exception, string $code, string $message): void {
     $mapped = $this->mapper->map($exception);
@@ -106,7 +126,7 @@ it('maps unknown throwables to internal_error with a readable message', function
 // culpa del servidor sense aquell sufix sortia com a 400 — i, com que
 // ApiExceptionSubscriber només registra a partir de 500, en silenci.
 it('maps every corrupted-state error to 500, whatever its code', function (
-    KalStateException $exception,
+    CorruptedStateException $exception,
     string $code,
 ): void {
     $mapped = $this->mapper->map($exception);
@@ -119,6 +139,7 @@ it('maps every corrupted-state error to 500, whatever its code', function (
     'clue with no meeting' => [fn () => KalStateException::missingClueMeeting(), 'kal_clue_meeting_missing'],
     'not a kal' => [fn () => KalStateException::invalidKal(), 'kal_invalid'],
     'no entropy' => [fn () => KalStateException::inviteTokenGenerationFailed(), 'kal_invite_token_generation_failed'],
+    'invalid stored profile id' => [fn () => UserException::invalidStoredProfileId(), 'user_invalid_stored_profile_id'],
 ]);
 
 // La contrapartida: el que SÍ que pot arreglar qui fa la petició segueix sent
