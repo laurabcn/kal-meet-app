@@ -71,6 +71,29 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /**
      * @throws KalNotFoundException
+     * @throws KalStateException
+     */
+    public function delete(Kal $kal): void
+    {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        $key = $kal->id->value();
+
+        if (isset($this->deletedIds[$key]) || !isset($this->kals[$key])) {
+            throw KalNotFoundException::create();
+        }
+
+        if (!$this->kals[$key]->organizerId->equals($kal->organizerId)) {
+            throw KalNotFoundException::create();
+        }
+
+        $this->deletedIds[$key] = true;
+    }
+
+    /**
+     * @throws KalNotFoundException
      * @throws KalException
      */
     public function findById(UlidValue $id, UlidValue $organizerId): Kal
@@ -119,10 +142,18 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         return $kal;
     }
 
-    /** Simula un soft delete: el KAL desapareix de `findById`, com fa `deleted_at IS NOT NULL` a la BD. */
+    /**
+     * Drecera per deixar un KAL ja esborrat abans del cas sota prova, sense
+     * passar per `delete()` (no comprova ni propietat ni existència).
+     */
     public function softDelete(string $id): void
     {
         $this->deletedIds[$id] = true;
+    }
+
+    public function isDeleted(string $id): bool
+    {
+        return isset($this->deletedIds[$id]);
     }
 
     /** @return Kal[] */

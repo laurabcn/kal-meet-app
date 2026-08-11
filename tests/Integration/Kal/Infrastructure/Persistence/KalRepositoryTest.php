@@ -343,7 +343,7 @@ it('updates scalar kal columns without touching child tables', function (): void
 
     // Dates stay within the existing clue range; only scalars that don't
     // shrink the window need asserting here.
-    $kal->updateDetails(
+    $kal->update(
         NonEmptyStringValue::create('Updated name'),
         NonEmptyStringValue::create('Updated description'),
         DateTime::create('2026-07-15 00:00:00'),
@@ -384,7 +384,7 @@ it('throws kal_not_found when updating a soft-deleted kal', function (): void {
         ['id' => $kal->id->value()],
     );
 
-    $kal->updateDetails(
+    $kal->update(
         NonEmptyStringValue::create('Should fail'),
         $kal->description,
         $kal->startsOn,
@@ -393,5 +393,138 @@ it('throws kal_not_found when updating a soft-deleted kal', function (): void {
     );
 
     expect(fn () => $this->repository->update($kal))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+it('marks deleted_at on the kal and cascades it to every child row', function (): void {
+    $kal = KalMother::create(
+        files: FilesMother::of(FileMother::create()),
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+    $this->repository->create($kal);
+
+    $kal->delete();
+    $this->repository->delete($kal);
+
+    $id = $kal->id->value();
+    $row = $this->connection->fetchAssociative('SELECT * FROM kals WHERE id = :id', ['id' => $id]);
+    $alive = fn (string $table): int => (int) $this->connection->fetchOne(
+        'SELECT count(*) FROM '.$table.' WHERE kal_id = :id AND deleted_at IS NULL',
+        ['id' => $id],
+    );
+    $marked = fn (string $table): int => (int) $this->connection->fetchOne(
+        'SELECT count(*) FROM '.$table.' WHERE kal_id = :id AND deleted_at IS NOT NULL',
+        ['id' => $id],
+    );
+
+    // Cap fila desapareix: totes queden, totes marcades.
+    expect($row)->not->toBeFalse()
+        ->and($row['deleted_at'])->not->toBeNull()
+        ->and($marked('kal_locales'))->toBe(2)
+        ->and($marked('kal_files'))->toBe(1)
+        ->and($marked('clues'))->toBe(1)
+        ->and($marked('meetings'))->toBe(2)
+        ->and($marked('debate_rooms'))->toBe(1)
+        ->and($alive('kal_locales'))->toBe(0)
+        ->and($alive('kal_files'))->toBe(0)
+        ->and($alive('clues'))->toBe(0)
+        ->and($alive('meetings'))->toBe(0)
+        ->and($alive('debate_rooms'))->toBe(0);
+
+    expect(fn () => $this->repository->findById($kal->id, $this->organizerId))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+    expect(fn () => $this->repository->getActiveById($kal->id))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+it('leaves the children of another kal untouched', function (): void {
+    $victim = KalMother::create(
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+    $survivor = KalMother::create(
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+    $this->repository->create($victim);
+    $this->repository->create($survivor);
+
+    $victim->delete();
+    $this->repository->delete($victim);
+
+    $survivorId = $survivor->id->value();
+    $alive = fn (string $table): int => (int) $this->connection->fetchOne(
+        'SELECT count(*) FROM '.$table.' WHERE kal_id = :id AND deleted_at IS NULL',
+        ['id' => $survivorId],
+    );
+
+    expect($alive('kal_locales'))->toBe(2)
+        ->and($alive('clues'))->toBe(1)
+        ->and($alive('meetings'))->toBe(2)
+        ->and($alive('debate_rooms'))->toBe(1)
+        ->and($this->repository->findById($survivor->id, $this->organizerId)->clues->all())->toHaveCount(1);
+});
+
+it('does not mark any child when the caller is not the organizer', function (): void {
+    $kal = KalMother::create(
+        clues: CluesMother::of(ClueMother::create()),
+        organizerId: $this->organizerId,
+        meetings: MeetingsMother::of(MeetingMother::create()),
+    );
+    $this->repository->create($kal);
+
+    $otherOrganizerId = UlidValue::generate();
+    SupabaseConnection::insertProfile($otherOrganizerId->value());
+
+    // Mateix id, una altra organitzadora: el `WHERE` del repositori l'ha de
+    // deixar fora encara que l'agregat vingui marcat.
+    $impostor = KalMother::create(id: $kal->id, organizerId: $otherOrganizerId);
+    $impostor->delete();
+
+    expect(fn () => $this->repository->delete($impostor))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+
+    $id = $kal->id->value();
+    $marked = (int) $this->connection->fetchOne(
+        'SELECT count(*) FROM clues WHERE kal_id = :id AND deleted_at IS NOT NULL',
+        ['id' => $id],
+    );
+    expect($marked)->toBe(0);
+});
+
+it('throws kal_not_found when deleting a kal of another organizer', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $otherOrganizerId = UlidValue::generate();
+    SupabaseConnection::insertProfile($otherOrganizerId->value());
+
+    // Mateix id, una altra organitzadora: el `WHERE` del repositori l'ha de
+    // deixar fora encara que l'agregat vingui marcat.
+    $impostor = KalMother::create(id: $kal->id, organizerId: $otherOrganizerId);
+    $impostor->delete();
+
+    expect(fn () => $this->repository->delete($impostor))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+
+    $deletedAt = $this->connection->fetchOne(
+        'SELECT deleted_at FROM kals WHERE id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($deletedAt)->toBeNull();
+});
+
+it('throws kal_not_found when deleting an already deleted kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $kal->delete();
+    $this->repository->delete($kal);
+
+    expect(fn () => $this->repository->delete($kal))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 });

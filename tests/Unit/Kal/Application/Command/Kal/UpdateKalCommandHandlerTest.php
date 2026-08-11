@@ -85,8 +85,9 @@ it('does not persist when the patch has no changes', function (): void {
         changes: [],
     ));
 
+    // Un patch buit no toca res: el KAL segueix sense haver-se actualitzat mai.
     expect($this->repository->all()[0]->name->value())->toBe('Unchanged')
-        ->and($this->repository->all()[0]->updatedAt->value())->toBe($kal->updatedAt->value());
+        ->and($this->repository->all()[0]->updatedAt)->toBeNull();
 });
 
 it('throws kal_not_found when the kal does not exist', function (): void {

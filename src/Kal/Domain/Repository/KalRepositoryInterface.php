@@ -10,6 +10,7 @@ use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
+use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 
 interface KalRepositoryInterface
@@ -28,6 +29,16 @@ interface KalRepositoryInterface
      * @throws KalStateException
      */
     public function update(Kal $kal): void;
+
+    /**
+     * Soft delete: marca `deleted_at` i el KAL deixa d'existir per a tothom.
+     * No és idempotent — un segon intent ja no troba cap fila activa i és 404.
+     *
+     * @throws KalNotFoundException
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     */
+    public function delete(Kal $kal): void;
 
     /**
      * @throws KalNotFoundException

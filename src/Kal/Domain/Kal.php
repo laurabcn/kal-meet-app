@@ -29,7 +29,8 @@ final class Kal extends AggregateRoot
         public private(set) readonly Meetings $meetings,
         public private(set) readonly DebateRoom $debateRoom,
         public private(set) readonly DateTime $createdAt,
-        public private(set) DateTime $updatedAt,
+        public private(set) ?DateTime $updatedAt,
+        public private(set) ?DateTime $deletedAt,
     ) {
     }
 
@@ -74,7 +75,8 @@ final class Kal extends AggregateRoot
             $meetings ?? Meetings::create([]),
             DebateRoom::create(),
             $now,
-            $now,
+            null,
+            null,
         );
     }
 
@@ -94,7 +96,8 @@ final class Kal extends AggregateRoot
         Meetings $meetings,
         DebateRoom $debateRoom,
         DateTime $createdAt,
-        DateTime $updatedAt,
+        ?DateTime $updatedAt = null,
+        ?DateTime $deletedAt = null,
     ): self {
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
         self::guardCluesWithinRange($clues, $startsOn, $endsOn);
@@ -118,6 +121,7 @@ final class Kal extends AggregateRoot
             $debateRoom,
             $createdAt,
             $updatedAt,
+            $deletedAt,
         );
     }
 
@@ -143,7 +147,7 @@ final class Kal extends AggregateRoot
      * @throws KalException
      * @throws InvalidArgumentException
      */
-    public function updateDetails(
+    public function update(
         NonEmptyStringValue $name,
         ?NonEmptyStringValue $description,
         DateTime $startsOn,
@@ -159,6 +163,12 @@ final class Kal extends AggregateRoot
         $this->endsOn = $endsOn;
         $this->coverPath = $coverPath;
         $this->updatedAt = DateTime::now();
+    }
+
+    /** @throws InvalidArgumentException */
+    public function delete(): void
+    {
+        $this->deletedAt = DateTime::now();
     }
 
     /** @throws KalException */

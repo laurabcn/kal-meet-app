@@ -133,6 +133,39 @@ applied).
 - Fotos: bucket **privat**, servides amb URLs signades. Compressió **al client**
   abans de pujar (browser-image-compression, ~300 KB objectiu)
 
+### Dues superfícies d'API: CRUD d'organitzadora vs aula de participant (decidit)
+
+Dubte que ha tornat més d'un cop; queda tancat aquí. **No són dues vistes del
+mateix endpoint, són dues superfícies separades.**
+
+- **El CRUD de `/kal` és exclusivament de l'organitzadora.** Tots els seus
+  endpoints (create · get · patch · delete, i el CRUD de pistes quan arribi)
+  porten SEMPRE els **dos** ULIDs: el del Kal i el de l'organitzadora, tret del
+  JWT. La comprovació viu al `WHERE` del repositori (`findById(id, organizerId)`),
+  no en un `if` de la capa d'aplicació. Qui no és l'organitzadora rep **404
+  `kal_not_found`**, mai 403: no filtrem ni tan sols l'existència del KAL
+- **No s'hi afegeix mai una "vista de membre".** Que una participant tingui 404
+  a `GET /kal/{id}` és el comportament correcte, no un forat per tapar
+  (`docs/specs/get-kal.md` ja ho declara Non-Goal expressament)
+- **La superfície de la participant és l'aula**, amb endpoints propis: el
+  llistat de les aules on participa, i l'aula d'un KAL — xat, galeria de fotos i
+  vídeos que hi ha posat l'organitzadora, i les instruccions (el PDF/`file`) de
+  les pistes **ja alliberades**. Camps reduïts, i **mai** `inviteToken`
+- **Per què separades i no un endpoint amb dos formats:** el contracte OpenAPI
+  quedaria com una unió de camps opcionals que cap client sabria llegir (i n'hi
+  haurà més d'un: el frontend Vue i, més endavant, el MCP read-only). A més, el
+  risc real — filtrar l'`inviteToken` o una pista no alliberada — el conté
+  millor un handler que no llegeix mai aquests camps que un `if` dins d'un de
+  compartit
+- **Compte amb l'RLS:** aquests endpoints van amb la service_role key i
+  **salten RLS**, així que `is_clue_released` no els protegeix. El filtre de
+  pistes no alliberades l'ha de fer el codi de l'aula, explícitament
+
+**Estat:** l'aula encara no existeix al backend (avui només hi ha el CRUD
+d'organitzadora i `POST /kal/participation`). Queda per decidir quan es
+dissenyi: la forma exacta dels endpoints i què passa pel backend vs. què va
+directe a Supabase amb RLS (el xat ja s'ha decidit que hi va directe).
+
 ## Emmagatzematge de recursos (regla: binaris a Storage, enllaços/text a Postgres)
 - Bucket `kal-photos` (privat) — fotos de progrés (`{kal_id}/{clue_id}/{photo_id}.webp`),
   imatges del debat (`{kal_id}/debat/{message_id}.webp`), portades
@@ -219,13 +252,50 @@ pinnedMessage · inviteToken
   l'uuid de Supabase Auth — aquest queda a `profiles.external_id`, desacoblat
   (migració `20260716190425_users_external_id_ulid.sql`; `organizer_id`/
   `user_id` sempre usen l'id intern, mai `auth.uid()` directament)
-- Soft delete a kals via deleted_at; les RLS ja exclouen esborrats
+- Soft delete via `deleted_at`; les RLS ja exclouen esborrats. **En cascada des
+  del KAL**: veure «Soft delete: com s'esborra» més avall abans d'escriure cap
+  delete nou
 - El rol es deriva del context, mai s'emmagatzema: `is_kal_organizer` (ets
   `kals.organizer_id`), `is_kal_member` (participació activa o ets l'organizer)
 - Al backend, DDD amb hexagonal: domini pur (sense Symfony/DBAL) separat
   d'infraestructura; sense sobre-arquitecturar l'MVP. Composició (p.ex.
   `KalResponse` amb la fitxa incrustada perquè el FE no faci una segona crida)
   es fa a la capa `UI/`, no al repositori
+
+## Soft delete: com s'esborra (decidit 2026-08-11)
+
+Aquí no s'esborra res de veritat. La regla i, sobretot, **el raonament**, perquè
+qui faci el delete de pistes o de reunions no hagi de refer aquest debat:
+
+- **Cap `DELETE` d'SQL a l'app.** Tot és `UPDATE … SET deleted_at`. Totes les
+  taules de l'agregat en tenen columna: `kals`, `kal_locales`, `kal_files`,
+  `clues`, `meetings`, `debate_rooms` (migració
+  `20260811064206_kal_children_soft_delete.sql`)
+- **El delete del KAL marca tot l'arbre, a la mateixa transacció.** No només
+  l'arrel: un KAL esborrat amb filles vives és un estat que ningú sap llegir, i
+  el criteri és el mateix que ja aplica `create()` amb la debate room
+- **Per què cascada, si les filles ja eren invisibles.** Ho eren: només es
+  carreguen a través del KAL (`loadActive()` filtra `deleted_at IS NULL` → 404),
+  i les policies pengen de `is_kal_member`/`is_kal_organizer`, que ja donen fals
+  amb el KAL esborrat. La cascada és per **coherència de la fila**, no per
+  visibilitat — es va decidir sabent-ho
+- **Tres capes han de filtrar, no una.** Les policies RLS (client directe), el
+  repositori (el backend va amb service_role i **salta RLS**) i, quan calgui, el
+  domini. Oblidar la del mig és el forat fàcil
+- **Cada `SELECT` de filla porta `deleted_at IS NULL`**, encara que avui sembli
+  redundant perquè l'arrel ja hauria filtrat
+
+**Per al delete de pistes/reunions que ve:** és un delete **propi de l'entitat**,
+no una cascada des del KAL. Marca la seva fila i les que en pengin (la `Meeting`
+d'una clue cau amb la clue), no toquis el KAL, i recorda que
+`is_clue_released()` ja tracta una pista esborrada com a no alliberada — o sigui
+que les seves reunions deixen de ser visibles sense fer res més.
+
+**Qüestió oberta, conscientment:** restaurar. Amb cascada, el `deleted_at` d'una
+filla no diu si l'ha marcat la cascada del KAL o un esborrat individual anterior,
+o sigui que un «desfés» no sap què ha de reviure. Avui no hi ha restore enlloc i
+no es resol; quan n'hi hagi, o es guarda la marca de la cascada o s'accepta que
+tot torna alhora. No reobrir el debat de la cascada per això: ja es va valorar.
 
 ## Abast per fases del model
 
