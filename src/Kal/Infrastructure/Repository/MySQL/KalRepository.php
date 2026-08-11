@@ -12,6 +12,8 @@ use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Shared\Domain\Exception\InvalidArgumentException;
+use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
 use Doctrine\DBAL\Exception;
@@ -26,6 +28,15 @@ final readonly class KalRepository implements KalRepositoryInterface
     private const string TABLE_CLUES = 'clues';
     private const string TABLE_MEETINGS = 'meetings';
     private const string TABLE_DEBATE_ROOMS = 'debate_rooms';
+
+    /** Filles que el soft delete del KAL marca amb ell. */
+    private const array CHILD_TABLES = [
+        self::TABLE_LOCALES,
+        self::TABLE_FILES,
+        self::TABLE_CLUES,
+        self::TABLE_MEETINGS,
+        self::TABLE_DEBATE_ROOMS,
+    ];
 
     public function __construct(
         public private(set) MySQLRepository $repository,
@@ -136,6 +147,69 @@ final readonly class KalRepository implements KalRepositoryInterface
 
     /**
      * @throws KalNotFoundException
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     * @throws Exception
+     */
+    public function delete(UlidValue $id, UlidValue $organizerId): void
+    {
+        $connection = $this->repository->connection();
+        $now = DateTime::now()->value();
+        $kalId = $id->value();
+
+        $connection->beginTransaction();
+        try {
+            $affected = $connection->executeStatement(
+                'UPDATE '.self::TABLE_NAME.'
+                 SET deleted_at = :deleted_at,
+                     updated_at = :updated_at
+                 WHERE id = :id
+                   AND organizer_id = :organizer_id
+                   AND deleted_at IS NULL',
+                [
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                    'id' => $kalId,
+                    'organizer_id' => $organizerId->value(),
+                ],
+            );
+
+            // Ni existeix, ni és seu, ni ja estava esborrat: els tres casos són
+            // el mateix 404, com a la resta del CRUD (no filtrem existència).
+            if (0 === $affected) {
+                throw KalNotFoundException::create();
+            }
+
+            // Tot l'arbre cau amb l'arrel i a la mateixa transacció: un KAL
+            // esborrat amb filles vives seria un estat que ningú sap llegir.
+            foreach (self::CHILD_TABLES as $table) {
+                $connection->executeStatement(
+                    'UPDATE '.$table.'
+                     SET deleted_at = :deleted_at
+                     WHERE kal_id = :kal_id
+                       AND deleted_at IS NULL',
+                    ['deleted_at' => $now, 'kal_id' => $kalId],
+                );
+            }
+
+            $connection->commit();
+        } catch (KalNotFoundException $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw $e;
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws KalNotFoundException
      * @throws KalException
      * @throws KalStateException
      * @throws Exception
@@ -211,6 +285,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->select('locale')
             ->from(self::TABLE_LOCALES)
             ->where('kal_id = :kalId')
+            ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchFirstColumn();
@@ -227,6 +302,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->select('*')
             ->from(self::TABLE_FILES)
             ->where('kal_id = :kalId')
+            ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
@@ -235,6 +311,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->select('*')
             ->from(self::TABLE_CLUES)
             ->where('kal_id = :kalId')
+            ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
@@ -243,6 +320,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->select('*')
             ->from(self::TABLE_MEETINGS)
             ->where('kal_id = :kalId')
+            ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
@@ -251,6 +329,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->select('*')
             ->from(self::TABLE_DEBATE_ROOMS)
             ->where('kal_id = :kalId')
+            ->andWhere('deleted_at IS NULL')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
