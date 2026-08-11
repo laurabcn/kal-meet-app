@@ -10,6 +10,7 @@ use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
+use App\Kal\Domain\KalSummary;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 
@@ -39,6 +40,17 @@ interface KalRepositoryInterface
      * @throws InvalidArgumentException
      */
     public function delete(Kal $kal): void;
+
+    /**
+     * Vista de llista de l'organitzadora: no reconstrueix agregats.
+     * Ordenat pel KAL que comença més tard primer.
+     *
+     * @return list<KalSummary>
+     *
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     */
+    public function findAllByOrganizer(UlidValue $organizerId): array;
 
     /**
      * @throws KalNotFoundException

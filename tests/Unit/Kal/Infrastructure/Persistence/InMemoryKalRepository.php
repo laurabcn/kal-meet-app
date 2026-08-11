@@ -10,6 +10,7 @@ use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
+use App\Kal\Domain\KalSummary;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
 
@@ -90,6 +91,43 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         }
 
         $this->deletedIds[$key] = true;
+    }
+
+    /**
+     * @return list<KalSummary>
+     *
+     * @throws KalStateException
+     */
+    public function findAllByOrganizer(UlidValue $organizerId): array
+    {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        $mine = [];
+        foreach ($this->kals as $id => $kal) {
+            if (isset($this->deletedIds[$id]) || !$kal->organizerId->equals($organizerId)) {
+                continue;
+            }
+
+            $mine[] = $kal;
+        }
+
+        // Mateix ordre que l'SQL: comença més tard primer, desempat per id.
+        usort($mine, static fn (Kal $a, Kal $b): int => [$b->startsOn->value(), $b->id->value()]
+            <=> [$a->startsOn->value(), $a->id->value()]);
+
+        return array_map(
+            static fn (Kal $kal): KalSummary => new KalSummary(
+                $kal->id,
+                $kal->name,
+                $kal->description,
+                $kal->startsOn,
+                $kal->endsOn,
+                $kal->coverPath,
+            ),
+            $mine,
+        );
     }
 
     /**

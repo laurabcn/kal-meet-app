@@ -6,6 +6,7 @@ use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
@@ -35,6 +36,7 @@ beforeEach(function (): void {
         new MySQLRepository($this->connection),
         new NullLogger(),
         new KalHydrator(),
+        new KalSummaryHydrator(),
     );
 
     // La FK kals.organizer_id -> profiles.id demana un perfil de veritat.
@@ -516,6 +518,42 @@ it('throws kal_not_found when deleting a kal of another organizer', function ():
         ['id' => $kal->id->value()],
     );
     expect($deletedAt)->toBeNull();
+});
+
+it('lists only the active kals of the organizer, latest start first', function (): void {
+    $older = KalMother::create(
+        organizerId: $this->organizerId,
+        startsOn: DateTime::create('2026-01-01 00:00:00'),
+        endsOn: DateTime::create('2026-02-01 00:00:00'),
+    );
+    $newer = KalMother::create(
+        organizerId: $this->organizerId,
+        name: NonEmptyStringValue::create('El més nou'),
+        startsOn: DateTime::create('2026-09-01 00:00:00'),
+        endsOn: DateTime::create('2026-10-01 00:00:00'),
+    );
+    $deleted = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($older);
+    $this->repository->create($newer);
+    $this->repository->create($deleted);
+    $deleted->delete();
+    $this->repository->delete($deleted);
+
+    $otherOrganizerId = UlidValue::generate();
+    SupabaseConnection::insertProfile($otherOrganizerId->value());
+    $this->repository->create(KalMother::create(organizerId: $otherOrganizerId));
+
+    $summaries = $this->repository->findAllByOrganizer($this->organizerId);
+
+    expect(array_map(static fn ($summary): string => $summary->id->value(), $summaries))
+        ->toBe([$newer->id->value(), $older->id->value()])
+        ->and($summaries[0]->name->value())->toBe('El més nou')
+        ->and($summaries[0]->startsOn->value())->toBe('2026-09-01 00:00:00')
+        ->and($summaries[0]->endsOn?->value())->toBe('2026-10-01 00:00:00');
+});
+
+it('returns an empty list for an organizer without kals', function (): void {
+    expect($this->repository->findAllByOrganizer($this->organizerId))->toBe([]);
 });
 
 it('throws kal_not_found when deleting an already deleted kal', function (): void {

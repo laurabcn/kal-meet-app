@@ -157,10 +157,12 @@ it('answers 409 when the kal id already exists', function (): void {
         ->and($client->getResponse()->getContent())->toBe('{"error":"A kal with this id already exists.","code":"kal_already_exists"}');
 });
 
-it('answers 405 for a method other than POST', function (): void {
+// GET /kal ja no serveix: des del llistat de l'organitzadora és una ruta de
+// veritat. PUT segueix sense estar assignada a /kal.
+it('answers 405 for a method neither POST nor GET', function (): void {
     $client = static::createClient();
 
-    $client->request('GET', '/kal');
+    $client->request('PUT', '/kal');
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_METHOD_NOT_ALLOWED);
 });

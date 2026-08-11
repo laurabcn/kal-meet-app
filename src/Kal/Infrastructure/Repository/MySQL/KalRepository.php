@@ -10,8 +10,10 @@ use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
+use App\Kal\Domain\KalSummary;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
@@ -41,6 +43,7 @@ final readonly class KalRepository implements KalRepositoryInterface
         public private(set) MySQLRepository $repository,
         public private(set) LoggerInterface $logger,
         public private(set) KalHydrator $hydrator,
+        public private(set) KalSummaryHydrator $summaryHydrator,
     ) {
     }
 
@@ -212,6 +215,38 @@ final readonly class KalRepository implements KalRepositoryInterface
 
             throw KalStateException::persistenceFailed($e);
         }
+    }
+
+    /**
+     * @return list<KalSummary>
+     *
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     * @throws Exception
+     */
+    public function findAllByOrganizer(UlidValue $organizerId): array
+    {
+        $connection = $this->repository->connection();
+
+        try {
+            $rows = $connection
+                ->createQueryBuilder()
+                ->select('id', 'name', 'description', 'starts_on', 'ends_on', 'cover_path')
+                ->from(self::TABLE_NAME)
+                ->where('organizer_id = :organizerId')
+                ->andWhere('deleted_at IS NULL')
+                ->orderBy('starts_on', 'DESC')
+                // Desempat estable: sense ell, dos KALs que comencen el mateix
+                // dia poden sortir en ordre diferent a cada crida.
+                ->addOrderBy('id', 'DESC')
+                ->setParameter('organizerId', $organizerId->value())
+                ->executeQuery()
+                ->fetchAllAssociative();
+        } catch (\Throwable $e) {
+            throw KalStateException::persistenceFailed($e);
+        }
+
+        return array_map($this->summaryHydrator->hydrate(...), $rows);
     }
 
     /**

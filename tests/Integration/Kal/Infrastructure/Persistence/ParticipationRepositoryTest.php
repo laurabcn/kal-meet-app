@@ -6,6 +6,7 @@ use App\Kal\Domain\Exception\KalAlreadyMemberException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Participation;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Kal\Infrastructure\Repository\MySQL\ParticipationRepository;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -19,7 +20,7 @@ beforeEach(function (): void {
 
     $this->connection = SupabaseConnection::get();
     $mysql = new MySQLRepository($this->connection);
-    $this->kalRepository = new KalRepository($mysql, new NullLogger(), new KalHydrator());
+    $this->kalRepository = new KalRepository($mysql, new NullLogger(), new KalHydrator(), new KalSummaryHydrator());
     $this->participationRepository = new ParticipationRepository($mysql);
 
     $this->organizerId = UlidValue::generate();

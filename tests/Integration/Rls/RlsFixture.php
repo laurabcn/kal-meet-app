@@ -6,6 +6,7 @@ namespace Tests\Integration\Rls;
 
 use App\Kal\Domain\Participation;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Kal\Infrastructure\Repository\MySQL\ParticipationRepository;
 use App\Shared\Domain\ValueObject\DateTime;
@@ -89,7 +90,7 @@ final readonly class RlsFixture
             meetings: MeetingsMother::of($kalMeeting),
         );
 
-        (new KalRepository($mysql, new NullLogger(), new KalHydrator()))->create($kal);
+        (new KalRepository($mysql, new NullLogger(), new KalHydrator(), new KalSummaryHydrator()))->create($kal);
         (new ParticipationRepository($mysql))->create(
             Participation::create(UlidValue::generate(), $kal->id, $memberId),
         );
