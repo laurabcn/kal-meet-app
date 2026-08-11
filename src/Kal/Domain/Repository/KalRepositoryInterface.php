@@ -38,7 +38,7 @@ interface KalRepositoryInterface
      * @throws KalStateException
      * @throws InvalidArgumentException
      */
-    public function delete(UlidValue $id, UlidValue $organizerId): void;
+    public function delete(Kal $kal): void;
 
     /**
      * @throws KalNotFoundException

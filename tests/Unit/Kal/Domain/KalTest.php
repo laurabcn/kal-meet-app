@@ -37,7 +37,8 @@ it('creates a kal with only the required fields', function (): void {
         ->and($kal->clues->all())->toBeEmpty()
         ->and($kal->meetings->all())->toBeEmpty()
         ->and($kal->createdAt)->toBeInstanceOf(DateTime::class)
-        ->and($kal->updatedAt)->toBeInstanceOf(DateTime::class);
+        // Un KAL acabat de crear no s'ha actualitzat mai.
+        ->and($kal->updatedAt)->toBeNull();
 });
 
 it('creates a kal with all optional fields populated', function (): void {
@@ -378,9 +379,10 @@ it('updates editable scalar fields and bumps updatedAt', function (): void {
         endsOn: DateTime::create('2026-09-01 00:00:00'),
         coverPath: 'old/cover.webp',
     );
-    $previousUpdatedAt = $kal->updatedAt->value();
+    // Encara sense actualitzar: el primer `update()` és qui estrena el camp.
+    expect($kal->updatedAt)->toBeNull();
 
-    $kal->updateDetails(
+    $kal->update(
         NonEmptyStringValue::create('New name'),
         NonEmptyStringValue::create('New description'),
         DateTime::create('2026-08-05 00:00:00'),
@@ -393,7 +395,8 @@ it('updates editable scalar fields and bumps updatedAt', function (): void {
         ->and($kal->startsOn->value())->toBe('2026-08-05 00:00:00')
         ->and($kal->endsOn?->value())->toBe('2026-09-05 00:00:00')
         ->and($kal->coverPath)->toBe('new/cover.webp')
-        ->and($kal->updatedAt->value())->toBeGreaterThanOrEqual($previousUpdatedAt);
+        ->and($kal->updatedAt)->not->toBeNull()
+        ->and($kal->updatedAt?->value())->toBeGreaterThanOrEqual($kal->createdAt->value());
 });
 
 it('allows clearing nullable scalar fields on update', function (): void {
@@ -403,7 +406,7 @@ it('allows clearing nullable scalar fields on update', function (): void {
         coverPath: 'cover.webp',
     );
 
-    $kal->updateDetails(
+    $kal->update(
         $kal->name,
         null,
         $kal->startsOn,
@@ -419,7 +422,7 @@ it('allows clearing nullable scalar fields on update', function (): void {
 it('rejects an invalid date range on update', function (): void {
     $kal = KalMother::create();
 
-    $kal->updateDetails(
+    $kal->update(
         $kal->name,
         $kal->description,
         DateTime::create('2026-08-01 00:00:00'),
@@ -438,7 +441,7 @@ it('rejects shrinking the kal range below an existing clue', function (): void {
         endsOn: DateTime::create('2026-09-01 00:00:00'),
     );
 
-    $kal->updateDetails(
+    $kal->update(
         $kal->name,
         $kal->description,
         $kal->startsOn,

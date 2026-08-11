@@ -13,7 +13,6 @@ use App\Kal\Domain\Kal;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
-use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
 use Doctrine\DBAL\Exception;
@@ -151,11 +150,18 @@ final readonly class KalRepository implements KalRepositoryInterface
      * @throws InvalidArgumentException
      * @throws Exception
      */
-    public function delete(UlidValue $id, UlidValue $organizerId): void
+    public function delete(Kal $kal): void
     {
         $connection = $this->repository->connection();
-        $now = DateTime::now()->value();
-        $kalId = $id->value();
+
+        // Arribar-hi sense marca vol dir que ningú ha cridat `Kal::delete()`:
+        // escriure-hi null desmarcaria el KAL en comptes d'esborrar-lo.
+        $deletedAt = $kal->deletedAt?->value();
+        if (null === $deletedAt) {
+            throw KalStateException::invalidKal();
+        }
+
+        $updatedAt = $kal->updatedAt?->value() ?? $kal->createdAt->value();
 
         $connection->beginTransaction();
         try {
@@ -167,10 +173,10 @@ final readonly class KalRepository implements KalRepositoryInterface
                    AND organizer_id = :organizer_id
                    AND deleted_at IS NULL',
                 [
-                    'deleted_at' => $now,
-                    'updated_at' => $now,
-                    'id' => $kalId,
-                    'organizer_id' => $organizerId->value(),
+                    'deleted_at' => $deletedAt,
+                    'updated_at' => $updatedAt,
+                    'id' => $kal->id->value(),
+                    'organizer_id' => $kal->organizerId->value(),
                 ],
             );
 
@@ -188,7 +194,7 @@ final readonly class KalRepository implements KalRepositoryInterface
                      SET deleted_at = :deleted_at
                      WHERE kal_id = :kal_id
                        AND deleted_at IS NULL',
-                    ['deleted_at' => $now, 'kal_id' => $kalId],
+                    ['deleted_at' => $deletedAt, 'kal_id' => $kal->id->value()],
                 );
             }
 
@@ -297,6 +303,7 @@ final readonly class KalRepository implements KalRepositoryInterface
         }
 
         $data['locales'] = $locales;
+
         $data['files'] = $connection
             ->createQueryBuilder()
             ->select('*')
@@ -306,6 +313,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
+
         $data['clues'] = $connection
             ->createQueryBuilder()
             ->select('*')
@@ -315,6 +323,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
+
         $data['meetings'] = $connection
             ->createQueryBuilder()
             ->select('*')
@@ -324,6 +333,7 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
+
         $data['debate_rooms'] = $connection
             ->createQueryBuilder()
             ->select('*')

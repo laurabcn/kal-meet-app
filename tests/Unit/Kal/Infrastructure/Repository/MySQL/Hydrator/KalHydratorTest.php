@@ -73,7 +73,9 @@ it('extracts the kal row and child rows ready for insert', function (): void {
         'cover_path' => 'kals/id/portada.webp',
         'invite_token' => $kal->inviteToken->value(),
         'created_at' => $kal->createdAt->value(),
-        'updated_at' => $kal->updatedAt->value(),
+        // `kals.updated_at` és NOT NULL: sense haver-se actualitzat mai,
+        // l'extract hi escriu la data de creació.
+        'updated_at' => $kal->createdAt->value(),
     ])
         ->and($extracted['locales'])->toHaveCount(2)
         ->and($extracted['locales'][0])->toHaveKeys(['kal_id', 'locale'])
@@ -131,7 +133,9 @@ it('round-trips a full aggregate through extract and hydrate', function (): void
         ->and($hydrated->startsOn->value())->toBe($kal->startsOn->value())
         ->and($hydrated->endsOn?->value())->toBe($kal->endsOn?->value())
         ->and($hydrated->createdAt->value())->toBe($kal->createdAt->value())
-        ->and($hydrated->updatedAt->value())->toBe($kal->updatedAt->value())
+        // L'anada i tornada passa per una columna NOT NULL, o sigui que un
+        // `updatedAt` null torna com la data de creació: és el que hi ha desat.
+        ->and($hydrated->updatedAt?->value())->toBe($kal->createdAt->value())
         ->and(array_map(static fn ($locale) => $locale->value(), $hydrated->locales->all()))
             ->toEqualCanonicalizing(array_map(static fn ($locale) => $locale->value(), $kal->locales->all()))
         ->and($hydrated->files->all())->toHaveCount(1)
@@ -164,13 +168,13 @@ it('hydrates dates from DateTimeInterface values', function (): void {
     $payload = hydratePayloadFromExtract($this->hydrator->extract($kal));
     $payload['starts_on'] = new DateTimeImmutable($kal->startsOn->value(), new DateTimeZone('UTC'));
     $payload['created_at'] = new DateTimeImmutable($kal->createdAt->value(), new DateTimeZone('UTC'));
-    $payload['updated_at'] = new DateTimeImmutable($kal->updatedAt->value(), new DateTimeZone('UTC'));
+    $payload['updated_at'] = new DateTimeImmutable($kal->createdAt->value(), new DateTimeZone('UTC'));
 
     $hydrated = $this->hydrator->hydrate($payload);
 
     expect($hydrated->startsOn->value())->toBe($kal->startsOn->value())
         ->and($hydrated->createdAt->value())->toBe($kal->createdAt->value())
-        ->and($hydrated->updatedAt->value())->toBe($kal->updatedAt->value());
+        ->and($hydrated->updatedAt?->value())->toBe($kal->createdAt->value());
 });
 
 it('hydrates file_size from a numeric string', function (): void {

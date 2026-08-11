@@ -343,7 +343,7 @@ it('updates scalar kal columns without touching child tables', function (): void
 
     // Dates stay within the existing clue range; only scalars that don't
     // shrink the window need asserting here.
-    $kal->updateDetails(
+    $kal->update(
         NonEmptyStringValue::create('Updated name'),
         NonEmptyStringValue::create('Updated description'),
         DateTime::create('2026-07-15 00:00:00'),
@@ -384,7 +384,7 @@ it('throws kal_not_found when updating a soft-deleted kal', function (): void {
         ['id' => $kal->id->value()],
     );
 
-    $kal->updateDetails(
+    $kal->update(
         NonEmptyStringValue::create('Should fail'),
         $kal->description,
         $kal->startsOn,
@@ -405,7 +405,8 @@ it('marks deleted_at on the kal and cascades it to every child row', function ()
     );
     $this->repository->create($kal);
 
-    $this->repository->delete($kal->id, $this->organizerId);
+    $kal->delete();
+    $this->repository->delete($kal);
 
     $id = $kal->id->value();
     $row = $this->connection->fetchAssociative('SELECT * FROM kals WHERE id = :id', ['id' => $id]);
@@ -452,7 +453,8 @@ it('leaves the children of another kal untouched', function (): void {
     $this->repository->create($victim);
     $this->repository->create($survivor);
 
-    $this->repository->delete($victim->id, $this->organizerId);
+    $victim->delete();
+    $this->repository->delete($victim);
 
     $survivorId = $survivor->id->value();
     $alive = fn (string $table): int => (int) $this->connection->fetchOne(
@@ -478,7 +480,12 @@ it('does not mark any child when the caller is not the organizer', function (): 
     $otherOrganizerId = UlidValue::generate();
     SupabaseConnection::insertProfile($otherOrganizerId->value());
 
-    expect(fn () => $this->repository->delete($kal->id, $otherOrganizerId))
+    // Mateix id, una altra organitzadora: el `WHERE` del repositori l'ha de
+    // deixar fora encara que l'agregat vingui marcat.
+    $impostor = KalMother::create(id: $kal->id, organizerId: $otherOrganizerId);
+    $impostor->delete();
+
+    expect(fn () => $this->repository->delete($impostor))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 
     $id = $kal->id->value();
@@ -496,7 +503,12 @@ it('throws kal_not_found when deleting a kal of another organizer', function ():
     $otherOrganizerId = UlidValue::generate();
     SupabaseConnection::insertProfile($otherOrganizerId->value());
 
-    expect(fn () => $this->repository->delete($kal->id, $otherOrganizerId))
+    // Mateix id, una altra organitzadora: el `WHERE` del repositori l'ha de
+    // deixar fora encara que l'agregat vingui marcat.
+    $impostor = KalMother::create(id: $kal->id, organizerId: $otherOrganizerId);
+    $impostor->delete();
+
+    expect(fn () => $this->repository->delete($impostor))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 
     $deletedAt = $this->connection->fetchOne(
@@ -510,8 +522,9 @@ it('throws kal_not_found when deleting an already deleted kal', function (): voi
     $kal = KalMother::create(organizerId: $this->organizerId);
     $this->repository->create($kal);
 
-    $this->repository->delete($kal->id, $this->organizerId);
+    $kal->delete();
+    $this->repository->delete($kal);
 
-    expect(fn () => $this->repository->delete($kal->id, $this->organizerId))
+    expect(fn () => $this->repository->delete($kal))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 });

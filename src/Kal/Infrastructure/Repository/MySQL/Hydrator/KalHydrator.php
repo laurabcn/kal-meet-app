@@ -190,7 +190,9 @@ final readonly class KalHydrator implements HydratorInterface
                 'cover_path' => $object->coverPath,
                 'invite_token' => $object->inviteToken->value(),
                 'created_at' => $object->createdAt->value(),
-                'updated_at' => $object->updatedAt->value(),
+                // `kals.updated_at` és NOT NULL: un KAL que no s'ha tocat mai
+                // es va tocar per últim cop quan es va crear.
+                'updated_at' => $object->updatedAt?->value() ?? $object->createdAt->value(),
             ],
             'locales' => array_values(array_map(
                 static fn (Locale $locale): array => [

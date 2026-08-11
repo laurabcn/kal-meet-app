@@ -65,7 +65,7 @@ final readonly class UpdateKalCommandHandler implements CommandHandlerInterface
             $coverPath = $command->changes['coverPath'];
         }
 
-        $kal->updateDetails($name, $description, $startsOn, $endsOn, $coverPath);
+        $kal->update($name, $description, $startsOn, $endsOn, $coverPath);
 
         $this->kalRepository->update($kal);
     }

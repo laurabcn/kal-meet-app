@@ -73,18 +73,19 @@ final class InMemoryKalRepository implements KalRepositoryInterface
      * @throws KalNotFoundException
      * @throws KalStateException
      */
-    public function delete(UlidValue $id, UlidValue $organizerId): void
+    public function delete(Kal $kal): void
     {
         if (null !== $this->failure) {
             throw $this->failure;
         }
 
-        $key = $id->value();
+        $key = $kal->id->value();
+
         if (isset($this->deletedIds[$key]) || !isset($this->kals[$key])) {
             throw KalNotFoundException::create();
         }
 
-        if (!$this->kals[$key]->organizerId->equals($organizerId)) {
+        if (!$this->kals[$key]->organizerId->equals($kal->organizerId)) {
             throw KalNotFoundException::create();
         }
 

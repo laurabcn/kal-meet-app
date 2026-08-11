@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Kal\Application\Command\Kal;
 
+use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -22,16 +23,19 @@ final readonly class DeleteKalCommandHandler implements CommandHandlerInterface
 
     /**
      * @throws KalNotFoundException
+     * @throws KalException
      * @throws KalStateException
      * @throws InvalidArgumentException
      */
     public function __invoke(DeleteKalCommand $command): void
     {
-        // Sense carregar l'agregat: el `WHERE` del repositori ja exigeix que
-        // sigui seu i que estigui actiu, i aquí no hi ha cap invariant a validar.
-        $this->kalRepository->delete(
+        $kal = $this->kalRepository->findById(
             UlidValue::create($command->id),
             UlidValue::create($command->organizerId),
         );
+
+        $kal->delete();
+
+        $this->kalRepository->delete($kal);
     }
 }
