@@ -79,6 +79,19 @@ acceptat: una participant pot veure canviar una pista que ja estava llegint.
 **`updatedAt`.** Un canvi de pista mou `clues.updated_at` i **deixa
 `kals.updated_at` com estava**. Cada fila diu quan la van tocar a ella.
 
+**Ordre de lectura.** El `GET /kal/{id}` retorna les pistes ordenades per
+`starts_on` ascendent, amb `id` com a desempat estable. Fins ara sortien en
+l'ordre que decidís Postgres i no es notava perquè es creaven totes de cop; amb
+pistes afegides més tard, l'ordre deixaria de ser estable entre crides. És un
+`ORDER BY` a la consulta de `clues` de `loadActive()`, no una columna nova:
+**no hi ha `position` i no se n'afegeix cap.**
+
+**Límit de pistes.** Màxim **24 per KAL**. No és una regla de producte — un MKAL
+en pot tenir 4 o 12 i tots dos són normals — sinó un topall tècnic perquè un
+client amb un bug no infli l'agregat, que es carrega sencer a cada escriptura.
+Passar-se'n és `400 kal_clue_limit_reached` (codi nou). Ho fa complir l'arrel,
+o sigui que val tant per al `POST /kal` com per al `POST /kal/{kalId}/clue`.
+
 ## Inputs / Outputs
 
 ### `POST /kal/{kalId}/clue`
@@ -204,6 +217,12 @@ com la resta.
 - [ ] Els invariants de rang i de locale es validen **al domini**, no al
       controller ni a la BD, i cap violació deixa res escrit.
 - [ ] Un `clueId` d'un altre KAL dona `404 clue_not_found`.
+- [ ] El `GET /kal/{id}` retorna les pistes ordenades per `starts_on`, i l'ordre
+      no canvia entre crides quan dues comparteixen data.
+- [ ] La pista 25 d'un KAL dona `400 kal_clue_limit_reached`, tant pel `POST`
+      de pista com pel `POST /kal`, i no es desa res.
+- [ ] Un KAL amb pistes i reunió pròpia segueix essent vàlid: cap error, i el
+      `GET` continua retornant les dues coses.
 - [ ] Tests: unitaris de domini (`Kal::updateClue` / `removeClue` i les seves
       guardes), unitaris dels tres handlers amb `InMemoryKalRepository`,
       funcionals HTTP dels tres endpoints inclosos 400/401/404, i d'integració
@@ -245,6 +264,64 @@ com la resta.
 - Vídeos per pista, debat per pista, alliberament programat amb recordatoris:
   tot Fase 2.
 
+## Feina derivada (decidida, entra amb aquesta spec)
+
+Tres forats del model de reunions que han sortit revisant l'spec. No són el CRUD
+de pistes, però hi toquen prou perquè arreglar-los ara surti més barat que
+després.
+
+### D1. `meetings` no fa complir «una reunió per pista»
+
+Només hi ha un índex de cerca (`meetings_clue_id_idx`, parcial sobre
+`clue_id is not null`), cap `unique`. Si mai hi hagués dues files amb el mateix
+`clue_id`, `KalHydrator` es queda **silenciosament amb l'última**
+(`$meetingsByClueId[$clueId] = $meeting;`) i l'altra desapareix sense error ni
+log.
+
+Avui no pot passar, perquè les reunions només s'escriuen des de l'agregat i el
+domini n'admet una per pista. Amb el `POST /kal/{kalId}/clue` hi haurà un camí
+d'escriptura més, o sigui més superfície per a un error de programació que la BD
+no atraparia.
+
+**Feina:** migració que afegeix un índex únic parcial:
+
+```sql
+create unique index if not exists meetings_clue_id_unique
+    on meetings (clue_id) where clue_id is not null;
+```
+
+Nota: això **contradiu la restricció «sense migració»** de Constraints. Val la
+pena l'excepció; queda escrit perquè no sembli una relliscada.
+
+### D2. Les reunions de KAL no es validen contra el rang del KAL
+
+`Kal::create()` comprova dates pròpies, pistes dins del rang i locales, però
+**cap guarda mira les seves pròpies reunions**. Es pot programar una trobada de
+KAL tres mesos després que el KAL acabi. Les de pista sí que estan protegides
+(`guardMeetingWithinRange` a `Clue::create()`), o sigui que la protecció és
+asimètrica sense cap motiu.
+
+**Feina:** guarda a l'arrel que apliqui a `Kal::$meetings` el mateix criteri que
+ja s'aplica a les pistes, reutilitzant `KalException::meetingOutsideClueRange()`
+o amb un codi propi de KAL. A decidir en implementar-ho: quin dels dos.
+
+### D3. Reunió de KAL havent-hi pistes: es tolera i s'ignora
+
+Decidit el 2026-08-15: **no és cap invariant**. Un KAL amb pistes pot tenir
+reunió pròpia i no passa res — el valor natural és null, però `not null` és
+igualment vàlid i no es rebutja.
+
+Conseqüència pràctica: **cap validació nova, cap error nou, cap canvi al
+`POST /kal`**, i els 13 tests que avui creen un KAL amb pistes i reunió alhora
+segueixen essent correctes. Quan hi ha pistes, les trobades que compten són les
+de les pistes; la del KAL simplement no es fa servir.
+
+L'API la segueix desant i retornant al `GET /kal/{id}` com fins ara; qui la
+ignora és el consumidor. Si algun dia es prefereix que l'API no la retorni
+havent-hi pistes, és una línia a `GetKalResponse` — però llavors deixa de ser
+«ignorar» i passa a ser amagar dades que sí que existeixen, que és una altra
+decisió.
+
 ## Trade-offs
 
 - **Carregar l'agregat a cada escriptura** en comptes d'un `ClueRepository` que
@@ -280,10 +357,10 @@ com la resta.
 
 ## Open questions
 
-1. **Ordre de les pistes al `GET /kal/{id}`.** Avui surten en l'ordre que les
-   torna Postgres, sense `ORDER BY`. Amb pistes que s'afegeixen més tard, això
-   deixa de ser estable. Val la pena ordenar per `starts_on` a la lectura?
-   (No bloqueja aquesta spec, però hi apareixerà de seguida.)
-2. **Límit de pistes per KAL.** Cap avui. Fa falta?
-3. Quan arribi l'endpoint de reunió, ¿serà
+1. Quan arribi l'endpoint de reunió, ¿serà
    `PATCH /kal/{kalId}/clue/{clueId}/meeting`, o s'obrirà el PATCH de la pista?
+   La resposta decidirà també si l'escenari 8 deixa de ser una encallada.
+
+_Resoltes el 2026-08-15: l'ordre de lectura (per `starts_on`, veure Behavior),
+el límit de pistes (24, veure Behavior) i la reunió de KAL havent-hi pistes
+(es tolera i s'ignora, veure D3)._
