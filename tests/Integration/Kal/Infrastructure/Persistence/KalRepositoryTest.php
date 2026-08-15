@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -12,6 +13,7 @@ use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Psr\Log\NullLogger;
 use Tests\Integration\Kal\Infrastructure\Persistence\SupabaseConnection;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
@@ -554,6 +556,163 @@ it('lists only the active kals of the organizer, latest start first', function (
 
 it('returns an empty list for an organizer without kals', function (): void {
     expect($this->repository->findAllByOrganizer($this->organizerId))->toBe([]);
+});
+
+it('writes a clue and its meeting, linked, in that order', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+
+    $clue = ClueMother::create(name: 'Pista 2');
+    $kal->addClue($clue);
+    $this->repository->addClue($kal->id, $clue);
+
+    $row = $this->connection->fetchAssociative(
+        'SELECT * FROM clues WHERE id = :id',
+        ['id' => $clue->id->value()],
+    );
+    $meeting = $this->connection->fetchAssociative(
+        'SELECT * FROM meetings WHERE clue_id = :id',
+        ['id' => $clue->id->value()],
+    );
+
+    expect($row['name'])->toBe('Pista 2')
+        ->and($row['kal_id'])->toBe($kal->id->value())
+        ->and($row['deleted_at'])->toBeNull()
+        ->and($meeting)->not->toBeFalse()
+        ->and($meeting['id'])->toBe($clue->meeting->id->value());
+
+    // I es torna a llegir dins de l'agregat.
+    expect($this->repository->findById($kal->id, $this->organizerId)->clues->all())->toHaveCount(1);
+});
+
+it('refuses a second meeting for the same clue', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+    $clue = ClueMother::create();
+    $kal->addClue($clue);
+    $this->repository->addClue($kal->id, $clue);
+
+    // L'índex únic parcial de `meetings_clue_id_unique`: sense ell, l'hidratador
+    // es quedaria en silenci amb una de les dues.
+    expect(fn () => $this->connection->executeStatement(
+        'INSERT INTO meetings (id, kal_id, clue_id, title, url, scheduled_at, timezone)
+         VALUES (:id, :kal_id, :clue_id, :title, :url, :scheduled_at, :timezone)',
+        [
+            'id' => UlidValue::generate()->value(),
+            'kal_id' => $kal->id->value(),
+            'clue_id' => $clue->id->value(),
+            'title' => 'Duplicada',
+            'url' => 'https://example.com/duplicada',
+            'scheduled_at' => '2026-08-02 00:00:00',
+            'timezone' => 'Europe/Madrid',
+        ],
+    ))->toThrow(UniqueConstraintViolationException::class);
+});
+
+it('updates the scalar columns of a clue without touching its file or meeting', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+    $clue = ClueMother::create(name: 'Abans');
+    $kal->addClue($clue);
+    $this->repository->addClue($kal->id, $clue);
+
+    $updated = $kal->updateClue(
+        $clue->id,
+        NonEmptyStringValue::create('Després'),
+        NonEmptyStringValue::create('Nova'),
+        $clue->startsOn,
+        $clue->endsOn,
+        $clue->locale,
+    );
+    $this->repository->updateClue($kal->id, $updated);
+
+    $row = $this->connection->fetchAssociative('SELECT * FROM clues WHERE id = :id', ['id' => $clue->id->value()]);
+
+    expect($row['name'])->toBe('Després')
+        ->and($row['description'])->toBe('Nova')
+        ->and($row['file_upload_id'])->toBe($clue->file->uploadId->value())
+        ->and((int) $this->connection->fetchOne(
+            'SELECT count(*) FROM meetings WHERE clue_id = :id',
+            ['id' => $clue->id->value()],
+        ))->toBe(1);
+});
+
+it('marks the clue and its meeting when a clue is deleted', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+    $kept = ClueMother::create(name: 'Es queda');
+    $gone = ClueMother::create(name: 'Sen va');
+    $kal->addClue($kept);
+    $kal->addClue($gone);
+    $this->repository->addClue($kal->id, $kept);
+    $this->repository->addClue($kal->id, $gone);
+
+    $removed = $kal->removeClue($gone->id);
+    $this->repository->deleteClue($kal->id, $removed);
+
+    $clueDeletedAt = $this->connection->fetchOne(
+        'SELECT deleted_at FROM clues WHERE id = :id',
+        ['id' => $gone->id->value()],
+    );
+    $meetingDeletedAt = $this->connection->fetchOne(
+        'SELECT deleted_at FROM meetings WHERE clue_id = :id',
+        ['id' => $gone->id->value()],
+    );
+
+    expect($clueDeletedAt)->not->toBeNull()
+        ->and($meetingDeletedAt)->not->toBeNull();
+
+    // La pista que es queda segueix sencera, i és l'única que es llegeix.
+    $reloaded = $this->repository->findById($kal->id, $this->organizerId);
+    expect($reloaded->clues->all())->toHaveCount(1)
+        ->and($reloaded->clues->all()[0]->name->value())->toBe('Es queda')
+        ->and($reloaded->clues->all()[0]->meeting->id->equals($kept->meeting->id))->toBeTrue();
+});
+
+it('throws clue_not_found when deleting a clue twice', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+    $clue = ClueMother::create();
+    $kal->addClue($clue);
+    $this->repository->addClue($kal->id, $clue);
+
+    $this->repository->deleteClue($kal->id, $clue);
+
+    expect(fn () => $this->repository->deleteClue($kal->id, $clue))
+        ->toThrow(ClueNotFoundException::class, 'Clue not found.');
+});
+
+it('reads the clues of a kal ordered by starts_on', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId, endsOn: DateTime::create('2026-12-01 00:00:00'));
+    $this->repository->create($kal);
+
+    // S'escriuen desordenades a propòsit.
+    $third = ClueMother::create(
+        name: 'Tercera',
+        startsOn: DateTime::create('2026-08-20 00:00:00'),
+        endsOn: DateTime::create('2026-08-27 00:00:00'),
+    );
+    $first = ClueMother::create(
+        name: 'Primera',
+        startsOn: DateTime::create('2026-08-01 00:00:00'),
+        endsOn: DateTime::create('2026-08-08 00:00:00'),
+    );
+    $second = ClueMother::create(
+        name: 'Segona',
+        startsOn: DateTime::create('2026-08-10 00:00:00'),
+        endsOn: DateTime::create('2026-08-17 00:00:00'),
+    );
+    foreach ([$third, $first, $second] as $clue) {
+        $kal->addClue($clue);
+        $this->repository->addClue($kal->id, $clue);
+    }
+
+    $names = array_map(
+        static fn ($clue): string => $clue->name->value(),
+        $this->repository->findById($kal->id, $this->organizerId)->clues->all(),
+    );
+
+    expect($names)->toBe(['Primera', 'Segona', 'Tercera']);
 });
 
 it('throws kal_not_found when deleting an already deleted kal', function (): void {
