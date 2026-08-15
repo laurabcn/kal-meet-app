@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Kal\Infrastructure\Repository\MySQL;
 
+use App\Kal\Domain\Clue;
+use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
@@ -15,6 +17,7 @@ use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
+use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\UlidValue;
 use App\Shared\Infrastructure\Repository\MySQLRepository;
 use Doctrine\DBAL\Exception;
@@ -218,6 +221,133 @@ final readonly class KalRepository implements KalRepositoryInterface
     }
 
     /**
+     * @throws KalStateException
+     * @throws Exception
+     */
+    public function addClue(UlidValue $kalId, Clue $clue): void
+    {
+        $connection = $this->repository->connection();
+        $id = $kalId->value();
+
+        $connection->beginTransaction();
+        try {
+            // La pista PRIMER: `meetings_clue_fk` apunta cap a `clues`, o sigui
+            // que la seva reunió no pot existir abans que ella.
+            $connection->insert(self::TABLE_CLUES, KalHydrator::extractClue($id, $clue));
+            $connection->insert(
+                self::TABLE_MEETINGS,
+                KalHydrator::extractMeeting($id, $clue->meeting, $clue->id->value()),
+            );
+
+            $connection->commit();
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws ClueNotFoundException
+     * @throws KalStateException
+     * @throws Exception
+     */
+    public function updateClue(UlidValue $kalId, Clue $clue): void
+    {
+        $connection = $this->repository->connection();
+        $row = KalHydrator::extractClue($kalId->value(), $clue);
+
+        try {
+            $affected = $connection->executeStatement(
+                'UPDATE '.self::TABLE_CLUES.'
+                 SET name = :name,
+                     description = :description,
+                     starts_on = :starts_on,
+                     ends_on = :ends_on,
+                     locale = :locale,
+                     updated_at = :updated_at
+                 WHERE id = :id
+                   AND kal_id = :kal_id
+                   AND deleted_at IS NULL',
+                [
+                    'name' => $row['name'],
+                    'description' => $row['description'],
+                    'starts_on' => $row['starts_on'],
+                    'ends_on' => $row['ends_on'],
+                    'locale' => $row['locale'],
+                    'updated_at' => $row['updated_at'],
+                    'id' => $row['id'],
+                    'kal_id' => $row['kal_id'],
+                ],
+            );
+
+            if (0 === $affected) {
+                throw ClueNotFoundException::create();
+            }
+        } catch (ClueNotFoundException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws ClueNotFoundException
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     * @throws Exception
+     */
+    public function deleteClue(UlidValue $kalId, Clue $clue): void
+    {
+        $connection = $this->repository->connection();
+        $now = DateTime::now()->value();
+        $id = $kalId->value();
+        $clueId = $clue->id->value();
+
+        $connection->beginTransaction();
+        try {
+            $affected = $connection->executeStatement(
+                'UPDATE '.self::TABLE_CLUES.'
+                 SET deleted_at = :deleted_at,
+                     updated_at = :updated_at
+                 WHERE id = :id
+                   AND kal_id = :kal_id
+                   AND deleted_at IS NULL',
+                ['deleted_at' => $now, 'updated_at' => $now, 'id' => $clueId, 'kal_id' => $id],
+            );
+
+            if (0 === $affected) {
+                throw ClueNotFoundException::create();
+            }
+
+            // La reunió d'una pista no sobreviu a la pista: és seva, no del KAL.
+            $connection->executeStatement(
+                'UPDATE '.self::TABLE_MEETINGS.'
+                 SET deleted_at = :deleted_at
+                 WHERE clue_id = :clue_id
+                   AND deleted_at IS NULL',
+                ['deleted_at' => $now, 'clue_id' => $clueId],
+            );
+
+            $connection->commit();
+        } catch (ClueNotFoundException $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw $e;
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
      * @return list<KalSummary>
      *
      * @throws KalStateException
@@ -355,6 +485,10 @@ final readonly class KalRepository implements KalRepositoryInterface
             ->from(self::TABLE_CLUES)
             ->where('kal_id = :kalId')
             ->andWhere('deleted_at IS NULL')
+            // Amb pistes afegides més tard, sense ORDER BY l'ordre deixa de ser
+            // estable entre crides. `id` desempata les que comparteixen data.
+            ->orderBy('starts_on', 'ASC')
+            ->addOrderBy('id', 'ASC')
             ->setParameter('kalId', $kalId)
             ->executeQuery()
             ->fetchAllAssociative();
