@@ -367,10 +367,16 @@ decisió.
 
 ## Open questions
 
-1. Quan arribi l'endpoint de reunió, ¿serà
-   `PATCH /kal/{kalId}/clue/{clueId}/meeting`, o s'obrirà el PATCH de la pista?
-   La resposta decidirà també si l'escenari 8 deixa de ser una encallada.
+Cap.
 
 _Resoltes el 2026-08-15: l'ordre de lectura (per `starts_on`, veure Behavior),
-el límit de pistes (24, veure Behavior) i la reunió de KAL havent-hi pistes
-(es tolera i s'ignora, veure D3)._
+el límit de pistes (24, veure Behavior), la reunió de KAL havent-hi pistes (es
+tolera i s'ignora, veure D3), la guarda de rang de les reunions de KAL
+(descartada, veure D2) i l'edició de reunions (endpoint propi, veure sota)._
+
+**Edició de reunions: endpoint propi, spec a part.** Serà
+`PATCH /kal/{kalId}/clue/{clueId}/meeting`, no una obertura del PATCH de la
+pista, i es dissenyarà amb la seva pròpia spec més endavant. Fins llavors
+**l'escenari 8 es queda tal com està**: escurçar una pista per sota de la seva
+trobada dona 400 i no hi ha sortida des de l'API. Assumit; el PATCH d'aquesta
+spec no s'obre per compensar-ho.
