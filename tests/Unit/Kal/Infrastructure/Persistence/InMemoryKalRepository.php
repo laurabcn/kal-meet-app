@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Kal\Infrastructure\Persistence;
 
+use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
@@ -21,6 +22,12 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /** @var array<string, true> */
     private array $deletedIds = [];
+
+    /** @var Clue[] */
+    private array $writtenClues = [];
+
+    /** @var list<string> */
+    private array $deletedClueIds = [];
 
     private ?KalStateException $failure = null;
 
@@ -128,6 +135,59 @@ final class InMemoryKalRepository implements KalRepositoryInterface
             ),
             $mine,
         );
+    }
+
+    /**
+     * El doble no reescriu la col·lecció: l'agregat que el handler acaba de
+     * mutar ja és el mateix objecte que hi ha desat, o sigui que la pista hi és.
+     * Aquí només es registra que l'escriptura s'ha demanat, i es respecta el
+     * `failWith()`.
+     *
+     * @throws KalStateException
+     */
+    public function addClue(UlidValue $kalId, Clue $clue): void
+    {
+        $this->writtenClues[] = $clue;
+
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+    }
+
+    /**
+     * @throws KalStateException
+     */
+    public function updateClue(UlidValue $kalId, Clue $clue): void
+    {
+        $this->writtenClues[] = $clue;
+
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+    }
+
+    /**
+     * @throws KalStateException
+     */
+    public function deleteClue(UlidValue $kalId, Clue $clue): void
+    {
+        $this->deletedClueIds[] = $clue->id->value();
+
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+    }
+
+    /** @return Clue[] */
+    public function writtenClues(): array
+    {
+        return $this->writtenClues;
+    }
+
+    /** @return list<string> */
+    public function deletedClueIds(): array
+    {
+        return $this->deletedClueIds;
     }
 
     /**

@@ -10,10 +10,12 @@ use App\Kal\Domain\Meeting;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
+use App\Shared\Domain\ValueObject\UlidValue;
 
 final class ClueMother
 {
     public static function create(
+        ?UlidValue $id = null,
         ?DateTime $startsOn = null,
         ?DateTime $endsOn = null,
         ?File $file = null,
@@ -27,6 +29,7 @@ final class ClueMother
         $endsOn ??= DateTime::create('2026-08-08 00:00:00');
 
         return Clue::create(
+            $id ?? UlidValue::generate(),
             NonEmptyStringValue::create($name ?? 'Round 1'),
             $startsOn,
             $endsOn,

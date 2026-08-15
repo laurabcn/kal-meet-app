@@ -32,3 +32,35 @@ function apiJsonHeaders(): array
 {
     return ['CONTENT_TYPE' => 'application/json'] + apiAuthHeaders();
 }
+
+/**
+ * Payload vàlid de pista per als tests d'HTTP. El PDF i la reunió hi són perquè
+ * el domini no admet una pista sense cap dels dos.
+ *
+ * @param array<string, mixed> $overrides
+ *
+ * @return array<string, mixed>
+ */
+function cluePayload(array $overrides = []): array
+{
+    return [
+        'name' => 'Pista 2',
+        'startsOn' => '2026-08-02 00:00:00',
+        'endsOn' => '2026-08-07 00:00:00',
+        'locale' => 'ca',
+        'file' => [
+            'fileName' => 'pista-2.pdf',
+            'filePath' => 'kal/clue/pista-2.pdf',
+            'fileSize' => 184320,
+            'fileExtension' => 'pdf',
+            'locale' => 'ca',
+            'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1A1',
+            'uploadedAt' => '2026-07-30 12:00:00',
+        ],
+        'meeting' => [
+            'scheduledAt' => '2026-08-03 18:00:00',
+            'url' => 'https://meet.example.com/pista-2',
+            'title' => 'Trobada de la pista 2',
+        ],
+    ] + $overrides;
+}

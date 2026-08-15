@@ -263,7 +263,7 @@ final readonly class KalHydrator implements HydratorInterface
      *     file_uploaded_at: string
      * }
      */
-    private static function extractClue(string $kalId, Clue $clue): array
+    public static function extractClue(string $kalId, Clue $clue): array
     {
         $file = $clue->file;
 
@@ -322,7 +322,7 @@ final readonly class KalHydrator implements HydratorInterface
      *     timezone: string
      * }
      */
-    private static function extractMeeting(string $kalId, Meeting $meeting, ?string $clueId = null): array
+    public static function extractMeeting(string $kalId, Meeting $meeting, ?string $clueId = null): array
     {
         return [
             'id' => $meeting->id->value(),

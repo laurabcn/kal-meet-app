@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Kal\Domain\Repository;
 
+use App\Kal\Domain\Clue;
+use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalNotFoundException;
@@ -51,6 +53,31 @@ interface KalRepositoryInterface
      * @throws InvalidArgumentException
      */
     public function findAllByOrganizer(UlidValue $organizerId): array;
+
+    /**
+     * Escriu la pista i la seva reunió, res més. Els invariants els ha validat
+     * abans l'agregat: aquests tres mètodes no comproven propietat ni rangs.
+     *
+     * @throws KalStateException
+     */
+    public function addClue(UlidValue $kalId, Clue $clue): void;
+
+    /**
+     * Només els escalars de la pista. No toca ni el PDF ni la reunió.
+     *
+     * @throws ClueNotFoundException
+     * @throws KalStateException
+     */
+    public function updateClue(UlidValue $kalId, Clue $clue): void;
+
+    /**
+     * Soft delete de la pista i de la seva reunió, a la mateixa transacció.
+     *
+     * @throws ClueNotFoundException
+     * @throws KalStateException
+     * @throws InvalidArgumentException
+     */
+    public function deleteClue(UlidValue $kalId, Clue $clue): void;
 
     /**
      * @throws KalNotFoundException

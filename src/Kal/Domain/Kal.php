@@ -4,16 +4,25 @@ declare(strict_types=1);
 
 namespace App\Kal\Domain;
 
+use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\Model\AggregateRoot;
 use App\Shared\Domain\ValueObject\DateTime;
+use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 
 final class Kal extends AggregateRoot
 {
+    /**
+     * Topall tècnic, no regla de producte: un MKAL de 4 pistes i un de 12 són
+     * tots dos normals. Hi és perquè l'agregat es carrega SENCER a cada
+     * escriptura i un client amb un bug no l'infli.
+     */
+    public const int MAX_CLUES = 24;
+
     private function __construct(
         public private(set) readonly UlidValue $id,
         public private(set) readonly UlidValue $organizerId,
@@ -52,6 +61,7 @@ final class Kal extends AggregateRoot
         ?string $coverPath = null,
         ?Meetings $meetings = null,
     ): self {
+        self::guardClueLimit($clues->count());
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
         self::guardCluesWithinRange($clues, $startsOn, $endsOn);
         self::guardFilesLocaleEnabled($files, $locales);
@@ -128,11 +138,52 @@ final class Kal extends AggregateRoot
     /** @throws KalException */
     public function addClue(Clue $clue): void
     {
+        self::guardClueLimit($this->clues->count() + 1);
         self::guardClueWithinRange($clue, $this->startsOn, $this->endsOn);
         self::guardFileLocaleEnabled($clue->file, $this->locales);
         self::guardClueLocaleEnabled($clue, $this->locales);
 
         $this->clues->add($clue);
+    }
+
+    /**
+     * Els escalars d'una pista. El PDF i la reunió no es toquen: tenen (o
+     * tindran) el seu propi camí.
+     *
+     * @throws ClueNotFoundException
+     * @throws KalException
+     * @throws InvalidArgumentException
+     */
+    public function updateClue(
+        UlidValue $clueId,
+        NonEmptyStringValue $name,
+        ?NonEmptyStringValue $description,
+        DateTime $startsOn,
+        DateTime $endsOn,
+        Locale $locale,
+    ): Clue {
+        $updated = $this->clues->get($clueId)->withDetails($name, $description, $startsOn, $endsOn, $locale);
+
+        self::guardClueWithinRange($updated, $this->startsOn, $this->endsOn);
+        self::guardClueLocaleEnabled($updated, $this->locales);
+
+        $this->clues->replace($updated);
+
+        return $updated;
+    }
+
+    /**
+     * Torna la pista retirada perquè qui persisteix necessita la seva reunió:
+     * cau amb ella.
+     *
+     * @throws ClueNotFoundException
+     */
+    public function removeClue(UlidValue $clueId): Clue
+    {
+        $clue = $this->clues->get($clueId);
+        $this->clues->remove($clueId);
+
+        return $clue;
     }
 
     public function addMeeting(Meeting $meeting): void
@@ -176,6 +227,19 @@ final class Kal extends AggregateRoot
     {
         if (null !== $endsOn && !$endsOn->isAfter($startsOn)) {
             throw KalException::invalidDateRange();
+        }
+    }
+
+    /**
+     * Només al create i a l'addClue: aplicar-ho també al reconstitute faria
+     * il·legibles els KALs que ja tinguessin més pistes que el topall d'avui.
+     *
+     * @throws KalException
+     */
+    private static function guardClueLimit(int $count): void
+    {
+        if ($count > self::MAX_CLUES) {
+            throw KalException::clueLimitReached();
         }
     }
 
