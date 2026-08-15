@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Kal\Domain\Participation;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Kal\Infrastructure\Repository\MySQL\ParticipationRepository;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -43,7 +44,7 @@ beforeEach(function (): void {
     SupabaseConnection::insertProfile(UlidValue::generate()->value(), $this->strangerUuid);
 
     $this->kal = KalMother::create(organizerId: $organizerId);
-    (new KalRepository($mysql, new NullLogger(), new KalHydrator()))->create($this->kal);
+    (new KalRepository($mysql, new NullLogger(), new KalHydrator(), new KalSummaryHydrator()))->create($this->kal);
 
     (new ParticipationRepository($mysql))->create(
         Participation::create(UlidValue::generate(), $this->kal->id, $memberId),

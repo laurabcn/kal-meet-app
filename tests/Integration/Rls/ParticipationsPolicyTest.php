@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Kal\Domain\Participation;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
+use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalSummaryHydrator;
 use App\Kal\Infrastructure\Repository\MySQL\KalRepository;
 use App\Kal\Infrastructure\Repository\MySQL\ParticipationRepository;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -42,7 +43,7 @@ beforeEach(function (): void {
     SupabaseConnection::insertProfile($strangerId->value(), $this->strangerUuid);
 
     $this->kal = KalMother::create(organizerId: $organizerId);
-    (new KalRepository($mysql, new NullLogger(), new KalHydrator()))->create($this->kal);
+    (new KalRepository($mysql, new NullLogger(), new KalHydrator(), new KalSummaryHydrator()))->create($this->kal);
 
     $participations = new ParticipationRepository($mysql);
     $participations->create(Participation::create(UlidValue::generate(), $this->kal->id, $this->memberId));
@@ -52,7 +53,7 @@ beforeEach(function (): void {
     $otherOrganizerId = UlidValue::generate();
     SupabaseConnection::insertProfile($otherOrganizerId->value(), Uuid::v4()->toRfc4122());
     $otherKal = KalMother::create(organizerId: $otherOrganizerId);
-    (new KalRepository($mysql, new NullLogger(), new KalHydrator()))->create($otherKal);
+    (new KalRepository($mysql, new NullLogger(), new KalHydrator(), new KalSummaryHydrator()))->create($otherKal);
     $participations->create(Participation::create(UlidValue::generate(), $otherKal->id, $strangerId));
 
     $this->visibleParticipations = fn (): array => $this->connection->fetchFirstColumn(
