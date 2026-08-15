@@ -293,17 +293,27 @@ create unique index if not exists meetings_clue_id_unique
 Nota: això **contradiu la restricció «sense migració»** de Constraints. Val la
 pena l'excepció; queda escrit perquè no sembli una relliscada.
 
-### D2. Les reunions de KAL no es validen contra el rang del KAL
+### D2. Les reunions de KAL no es validen contra cap rang — i es queda així
 
 `Kal::create()` comprova dates pròpies, pistes dins del rang i locales, però
-**cap guarda mira les seves pròpies reunions**. Es pot programar una trobada de
+**cap guarda mira les seves pròpies reunions**: es pot programar una trobada de
 KAL tres mesos després que el KAL acabi. Les de pista sí que estan protegides
-(`guardMeetingWithinRange` a `Clue::create()`), o sigui que la protecció és
-asimètrica sense cap motiu.
+(`guardMeetingWithinRange` a `Clue::create()`).
 
-**Feina:** guarda a l'arrel que apliqui a `Kal::$meetings` el mateix criteri que
-ja s'aplica a les pistes, reutilitzant `KalException::meetingOutsideClueRange()`
-o amb un codi propi de KAL. A decidir en implementar-ho: quin dels dos.
+Es va proposar igualar-ho amb una guarda a l'arrel. **Descartat el 2026-08-15.**
+Havent-hi pistes, la reunió del KAL és irrellevant — ni l'enllaç ni la data es
+fan servir — així que validar-la seria rebutjar dades que ningú llegeix, i
+convertiria un camp mort en una font d'errors 400.
+
+La asimetria amb les pistes es manté a propòsit: la reunió d'una pista sí que es
+valida, perquè aquella sí que s'ensenya i s'hi apunta gent.
+
+**Feina: cap.** Queda escrit perquè la propera persona que ho vegi sàpiga que és
+una decisió i no un oblit.
+
+**Conseqüència a tenir present:** tampoc es valida en un KAL **sense** pistes,
+que és l'únic cas on la reunió de KAL sí que és la que compta. Si algun dia es
+vol una guarda, és aquest cas i no l'altre.
 
 ### D3. Reunió de KAL havent-hi pistes: es tolera i s'ignora
 
