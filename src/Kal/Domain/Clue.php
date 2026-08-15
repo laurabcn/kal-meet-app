@@ -31,6 +31,7 @@ final class Clue
      * @throws InvalidArgumentException
      */
     public static function create(
+        UlidValue $id,
         NonEmptyStringValue $name,
         DateTime $startsOn,
         DateTime $endsOn,
@@ -43,7 +44,7 @@ final class Clue
         self::guardMeetingWithinRange($meeting, $startsOn, $endsOn);
 
         return new self(
-            UlidValue::generate(),
+            $id,
             $name,
             $description,
             $file,
@@ -85,6 +86,38 @@ final class Clue
             $startsOn,
             $endsOn,
             $updatedAt,
+        );
+    }
+
+    /**
+     * Una pista amb els escalars canviats. `Clue` és immutable, així que editar
+     * és fer-ne una de nova conservant identitat, PDF i reunió; només es mou
+     * `updatedAt`. Els invariants es tornen a comprovar sencers: un canvi de
+     * dates pot deixar la reunió fora del rang.
+     *
+     * @throws KalException
+     * @throws InvalidArgumentException
+     */
+    public function withDetails(
+        NonEmptyStringValue $name,
+        ?NonEmptyStringValue $description,
+        DateTime $startsOn,
+        DateTime $endsOn,
+        Locale $locale,
+    ): self {
+        self::guardAgainstInvalidDateRange($startsOn, $endsOn);
+        self::guardMeetingWithinRange($this->meeting, $startsOn, $endsOn);
+
+        return new self(
+            $this->id,
+            $name,
+            $description,
+            $this->file,
+            $this->meeting,
+            $locale,
+            $startsOn,
+            $endsOn,
+            DateTime::now(),
         );
     }
 

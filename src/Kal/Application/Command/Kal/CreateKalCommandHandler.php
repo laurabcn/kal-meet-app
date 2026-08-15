@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Kal\Application\Command\Kal;
 
+use App\Kal\Application\Factory\CluePayloadFactory;
 use App\Kal\Domain\Clue;
 use App\Kal\Domain\Clues;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
@@ -11,9 +12,7 @@ use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\File;
-use App\Kal\Domain\FileExtension;
 use App\Kal\Domain\Files;
-use App\Kal\Domain\FileSize;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Locales;
 use App\Kal\Domain\Meeting;
@@ -22,7 +21,6 @@ use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Shared\Application\Command\CommandHandlerInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
-use App\Shared\Domain\ValueObject\HttpsUrl;
 use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
@@ -71,7 +69,7 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
     private static function buildLocales(array $locales): Locales
     {
         return Locales::create(array_map(
-            static fn (mixed $code): Locale => Locale::fromString(self::toString($code)),
+            static fn (mixed $code): Locale => Locale::fromString(CluePayloadFactory::toString($code)),
             $locales,
         ));
     }
@@ -85,12 +83,15 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
     private static function buildFiles(array $files): Files
     {
         return Files::create(array_map(
-            static fn (mixed $data): File => self::buildFile(self::toArray($data)),
+            static fn (mixed $data): File => CluePayloadFactory::file(CluePayloadFactory::toArray($data)),
             $files,
         ));
     }
 
     /**
+     * Els ids de pista es generen aquí, no al domini: el `POST` d'una pista
+     * solta n'ha de tornar un al client i `Clue::create()` ja no se'l inventa.
+     *
      * @param list<mixed> $clues
      *
      * @throws KalException
@@ -100,7 +101,10 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
     private static function buildClues(array $clues): Clues
     {
         return Clues::create(array_map(
-            static fn (mixed $data): Clue => self::buildClue(self::toArray($data)),
+            static fn (mixed $data): Clue => CluePayloadFactory::clue(
+                UlidValue::generate(),
+                CluePayloadFactory::toArray($data),
+            ),
             $clues,
         ));
     }
@@ -114,129 +118,8 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
     private static function buildMeetings(array $meetings): Meetings
     {
         return Meetings::create(array_map(
-            static fn (mixed $data): Meeting => self::buildMeeting(self::toArray($data)),
+            static fn (mixed $data): Meeting => CluePayloadFactory::meeting(CluePayloadFactory::toArray($data)),
             $meetings,
         ));
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws KalException
-     * @throws InvalidArgumentException
-     * @throws KalFileException
-     */
-    private static function buildClue(array $data): Clue
-    {
-        $description = self::nullableString($data, 'description');
-
-        return Clue::create(
-            NonEmptyStringValue::create(self::string($data, 'name')),
-            DateTime::create(self::string($data, 'startsOn')),
-            DateTime::create(self::string($data, 'endsOn')),
-            self::buildFile(self::toArray($data['file'] ?? null)),
-            self::buildMeeting(self::toArray($data['meeting'] ?? null)),
-            Locale::fromString(self::string($data, 'locale')),
-            null !== $description ? NonEmptyStringValue::create($description) : null,
-        );
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws InvalidArgumentException
-     * @throws KalFileException
-     */
-    private static function buildFile(array $data): File
-    {
-        return new File(
-            NonEmptyStringValue::create(self::string($data, 'fileName')),
-            NonEmptyStringValue::create(self::string($data, 'filePath')),
-            FileSize::create(self::integer($data, 'fileSize')),
-            FileExtension::tryFromStatus(self::string($data, 'fileExtension')),
-            Locale::fromString(self::string($data, 'locale')),
-            UlidValue::create(self::string($data, 'uploadId')),
-            DateTime::create(self::string($data, 'uploadedAt')),
-        );
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws KalException
-     * @throws InvalidArgumentException
-     */
-    private static function buildMeeting(array $data): Meeting
-    {
-        $timezone = self::nullableString($data, 'timezone');
-
-        return Meeting::create(
-            DateTime::create(self::string($data, 'scheduledAt'), $timezone ?? Meeting::DEFAULT_TIMEZONE),
-            HttpsUrl::fromString(self::string($data, 'url')),
-            NonEmptyStringValue::create(self::string($data, 'title')),
-            $timezone,
-        );
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function string(array $data, string $key): string
-    {
-        return self::toString($data[$key] ?? null);
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function nullableString(array $data, string $key): ?string
-    {
-        $value = $data[$key] ?? null;
-
-        return null === $value ? null : self::toString($value);
-    }
-
-    /**
-     * @param array<array-key, mixed> $data
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function integer(array $data, string $key): int
-    {
-        $value = $data[$key] ?? null;
-
-        if (!\is_int($value)) {
-            throw InvalidArgumentException::invalidPayload();
-        }
-
-        return $value;
-    }
-
-    /** @throws InvalidArgumentException */
-    private static function toString(mixed $value): string
-    {
-        if (!\is_string($value) || '' === $value) {
-            throw InvalidArgumentException::invalidPayload();
-        }
-
-        return $value;
-    }
-
-    /**
-     * @return array<array-key, mixed>
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function toArray(mixed $value): array
-    {
-        if (!\is_array($value)) {
-            throw InvalidArgumentException::invalidPayload();
-        }
-
-        return $value;
     }
 }

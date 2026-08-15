@@ -18,6 +18,12 @@ final class KalException extends DomainException
         return new self('kal_clue_outside_range', 'A clue date range falls outside the kal date range.');
     }
 
+    /** Topall tècnic, no regla de producte: veure `Kal::MAX_CLUES`. */
+    public static function clueLimitReached(): self
+    {
+        return new self('kal_clue_limit_reached', 'A kal cannot hold more than 24 clues.');
+    }
+
     public static function noLocalesEnabled(): self
     {
         return new self('kal_no_locales_enabled', 'At least one locale must be enabled for the kal.');
