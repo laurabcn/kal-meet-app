@@ -20,10 +20,20 @@
 -- quan el grant ja ho impedeix abans que cap `with check` s'arribi a avaluar.
 -- L'esquema ha de dir la veritat sobre qui escriu.
 --
--- El backend no se n'assabenta: va amb la service_role key, que salta tant la
--- RLS com els grants. Aquesta migració NO toca res de lectura — els `grant
--- select` i totes les polítiques `*_select_*` es queden exactament igual,
--- perquè el frontend segueix llegint directament amb RLS.
+-- El backend no se n'assabenta, però no pel motiu que semblaria: aquí no hi ha
+-- cap service_role key pel mig. La connexió de Doctrine DBAL entra com a rol
+-- `postgres` (`DATABASE_URL` a `.env`, `TEST_DATABASE_URL` a `.env.test`), que
+-- és el PROPIETARI d'aquestes taules, i és la propietat —no cap bypass— el que
+-- el deixa fora d'un `revoke` sobre `anon`/`authenticated`. Que consti, perquè
+-- la confusió és fàcil i cara: a Postgres cap rol salta els grants (`service_role`
+-- té `rolbypassrls`, que és la RLS i prou; RLS i grants són mecanismes
+-- diferents), i la *service_role key* és una credencial de l'API REST de
+-- Supabase (PostgREST, supabase-js) que aquest backend no fa servir enlloc. De
+-- fet `service_role` no té ni `SELECT` sobre aquestes taules: qui «arregli» el
+-- backend perquè hi passi es trobarà `permission denied for table …`.
+-- Aquesta migració NO toca res de lectura — els `grant select` i totes les
+-- polítiques `*_select_*` es queden exactament igual, perquè el frontend
+-- segueix llegint directament amb RLS.
 --
 -- Canvi de comportament a tenir present als tests: abans, un UPDATE que no
 -- passava el `using` no petava, només afectava 0 files. Ara, sense el grant,

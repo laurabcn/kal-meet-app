@@ -158,10 +158,12 @@ applied).
 - Symfony porta tot el CRUD de gestió, i a més la lògica que no pot viure al
   client: validar tokens d'invitació, emails/recordatoris, crons, URLs signades
   de fotos. **No hi ha cap service_role key pel mig:** el backend parla amb
-  Postgres per Doctrine DBAL, connexió directa i com a rol **`postgres`** —el
-  superusuari, propietari de les taules— (`DATABASE_URL` a `.env`,
-  `TEST_DATABASE_URL` a `.env.test`), i per això no el limiten ni la RLS ni els
-  grants. La *service_role key* és una credencial de l'API REST de Supabase
+  Postgres per Doctrine DBAL, connexió directa i com a rol **`postgres`**
+  —propietari de les taules i amb `bypassrls`; no és `rolsuper` a Supabase, tot i
+  que ho sembli— (`DATABASE_URL` a `.env`, `TEST_DATABASE_URL` a `.env.test`), i
+  per això no el limiten ni la RLS (pel `bypassrls`) ni els grants (per la
+  propietat: són dos mecanismes separats i cada un el salta per un motiu
+  diferent). La *service_role key* és una credencial de l'API REST de Supabase
   (PostgREST, supabase-js) i aquest backend no la fa servir enlloc; de fet
   `bypassrls` no salta els grants, i el rol `service_role` no té ni `SELECT`
   sobre aquestes vuit taules, o sigui que encaminar-hi escriptures donaria

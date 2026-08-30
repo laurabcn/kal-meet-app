@@ -24,10 +24,15 @@
 -- mai res de veritat, i això ho esborraria de veritat.
 --
 -- PER QUÈ EL BACKEND NO SE N'ASSABENTA. Perquè no passa per aquests rols: la
--- connexió DBAL va com a `postgres` (propietari de les taules, `bypassrls`), i
--- la superfície Supabase va amb la service_role key. Revocar-li privilegis a
--- `anon`/`authenticated` no li toca res. Igual que ahir, aquesta migració NO
--- toca cap `grant select` ni cap política: el frontend segueix llegint directe.
+-- connexió DBAL entra com a `postgres`, que és el PROPIETARI d'aquestes taules,
+-- i és la propietat el que el deixa fora del `revoke`. No és que «salti els
+-- grants»: a Postgres això no ho fa cap rol — `service_role` té `rolbypassrls`,
+-- que és la RLS i prou. I aquest backend no va amb la service_role key enlloc:
+-- és una credencial de l'API REST (PostgREST, supabase-js) que aquí no s'usa, i
+-- `service_role` ni tan sols té `SELECT` sobre aquestes vuit taules, o sigui que
+-- encaminar-hi escriptures donaria `permission denied for table …`. Igual que
+-- ahir, aquesta migració NO toca cap `grant select` ni cap política: el frontend
+-- segueix llegint directe.
 --
 -- ABAST REAL, per no vendre-ho més gros del que és: `anon` i `authenticated`
 -- són rols NOLOGIN. Ningú s'hi connecta; només s'hi arriba pel `set role` que fa
@@ -86,15 +91,49 @@ from anon;
 -- (a) `REFERENCES` i `TRIGGER` es queden. Vénen del mateix `Dxt` heretat i
 --     tampoc els va decidir ningú. `REFERENCES` és inert (cal CREATE sobre
 --     l'esquema per tenir una taula on posar la FK, i cap dels dos rols en té),
---     però `TRIGGER` NO ho és: `create trigger` no demana CREATE sobre
---     l'esquema, i s'ha verificat que `authenticated` pot enganxar un trigger a
---     `kals`. Es deixa fora perquè és la mateixa decisió d'abast que el punt
---     (b), no una altra: o es tanquen tots dos rols a totes les taules, o no es
---     toca. Va a la taula de la desenvolupadora, no aquí.
+--     però `TRIGGER` no només no ho és: és **més greu que el `TRUNCATE` que sí
+--     que es tanca aquí**. `create trigger` no demana CREATE sobre l'esquema, i
+--     ja hi ha a la BD la funció que el fa útil: `supabase_functions.http_request()`
+--     retorna `trigger`, és `SECURITY DEFINER`, propietat de
+--     `supabase_functions_admin`, té `EXECUTE` concedit explícitament a `anon` i
+--     `authenticated`, i per sota crida `net.http_post` amb pg_net instal·lat.
+--     Verificat contra la BD local, no deduït. El camí, ja reproduït:
+--     `authenticated` enganxa aquest trigger a `kals` i, a partir d'aquell
+--     moment, CADA ESCRIPTURA DEL BACKEND envia la fila sencera a un host
+--     extern, amb l'`invite_token` en text pla.
+--
+--     Tres coses el fan pitjor que el `TRUNCATE`: (1) l'atacant no necessita
+--     poder escriure enlloc — el dispara el backend, o sigui que com millor
+--     tancada està l'escriptura del client (justament el que fan aquesta
+--     migració i la d'ahir), més trànsit passa pel `postgres` que el dispara;
+--     (2) el que se'n va és l'`invite_token`, la credencial per entrar al KAL, i
+--     la RLS no hi pinta res, perquè el payload el construeix una funció
+--     `SECURITY DEFINER`; (3) el `TRUNCATE` és un cop, sorollós i recuperable
+--     amb backup — això es posa una vegada, no ho mira mai ningú i va exfiltrant.
+--
+--     El que ho limita avui és el mateix que limita el `TRUNCATE`, i no és poc:
+--     `anon` i `authenticated` són NOLOGIN, PostgREST només exposa `public`, i
+--     cap dels dos rols té `CREATE` en cap esquema. És xarxa de sota, no un
+--     exploit d'una línia des del navegador. Es va deixar fora d'aquesta
+--     migració per la mateixa decisió d'abast que el punt (b) — o es tanquen
+--     tots dos rols a totes les taules, o no es toca — i es tanca en una
+--     migració posterior.
 --
 -- (b) L'`ALTER DEFAULT PRIVILEGES` segueix igual, o sigui que **la propera
 --     taula que creï una migració tornarà a néixer amb `Dxt` per als tres
 --     rols**. Aquesta migració tapa les vuit taules d'avui, no la font. Tancar
 --     la font és una decisió a part.
+--
+-- (c) **L'abast de tot l'inventari de dalt és l'esquema `public`, i prou.** Que
+--     no es llegeixi «ja està tot mirat»: aquesta migració existeix precisament
+--     perquè l'inventari d'ahir es va donar per complet havent-se deixat el rol
+--     `anon`. Fora de `public`, el mateix `Dxt` heretat segueix intacte i sobre
+--     el més sensible que tenim: `storage.buckets` i `storage.objects` donen a
+--     `anon` i `authenticated` **els set privilegis** (`SELECT, INSERT, UPDATE,
+--     DELETE, TRUNCATE, REFERENCES, TRIGGER`) — i `storage.objects` té RLS, que
+--     el `TRUNCATE` es salta igual que a `kals`: buidaria les metadades de tots
+--     els PDFs de `kal-patterns` i de totes les fotos. `supabase_functions.hooks`,
+--     sense RLS, té `INSERT/UPDATE/DELETE/TRUNCATE` per als dos rols. Res d'això
+--     es toca aquí: queda pendent.
 
 comment on table participations is 'Participation rows. Read-only for `authenticated` (write goes through the backend, which validates the invite token); no privileges at all for `anon`.';
