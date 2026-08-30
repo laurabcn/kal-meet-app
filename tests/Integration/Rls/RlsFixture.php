@@ -35,6 +35,29 @@ use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
  */
 final readonly class RlsFixture
 {
+    /**
+     * Les vuit taules de l'esquema `public`, per als tests que no proven una
+     * política sinó una invariant de TOT l'esquema (grants heretats, triggers
+     * inesperats). Viu aquí i no com a constant global d'un fitxer de test pel
+     * mateix motiu que la classe: dos fitxers que la declaressin petarien amb
+     * un fatal de redeclaració.
+     *
+     * Si una migració afegeix una taula a `public`, ha d'entrar en aquesta
+     * llista — si no, neix amb el `Dxt` heretat i cap guarda se n'adona.
+     *
+     * @var list<string>
+     */
+    public const array PUBLIC_TABLES = [
+        'kals',
+        'kal_locales',
+        'kal_files',
+        'clues',
+        'meetings',
+        'debate_rooms',
+        'participations',
+        'profiles',
+    ];
+
     private function __construct(
         public string $organizerUuid,
         public string $memberUuid,
