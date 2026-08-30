@@ -120,4 +120,18 @@ final class SupabaseConnection
     {
         self::get()->executeStatement('SET LOCAL ROLE authenticated');
     }
+
+    /**
+     * Passa al rol `anon`, el de la visitant SENSE loguejar (la publishable key
+     * abans de cap magic link). No és el mateix que `authenticateAs(null)`:
+     * allò deixa `auth.uid()` buit però segueix corrent com a `authenticated`,
+     * o sigui que prova la política amb els grants de la loguejada. Els grants
+     * dels dos rols han divergit més d'un cop —`anon` es va quedar el TRUNCATE
+     * heretat que a `authenticated` sí que se li havia revocat—, i sense
+     * canviar de rol això no ho veu cap test.
+     */
+    public static function asAnonRole(): void
+    {
+        self::get()->executeStatement('SET LOCAL ROLE anon');
+    }
 }

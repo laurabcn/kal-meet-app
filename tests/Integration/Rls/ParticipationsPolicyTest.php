@@ -137,3 +137,24 @@ it('refuses a direct insert from the client', function (): void {
         ],
     ))->toThrow(DriverException::class, 'permission denied for table participations');
 });
+
+// `participations` va quedar fora de la revocació del 2026-08-29 i es va passar
+// un dia sencer amb el TRUNCATE heretat: qualsevol usuària loguejada podia
+// buidar la taula. I TRUNCATE no filtra per RLS, se la salta sencera, o sigui
+// que cap de les polítiques de més amunt hi hauria fet res.
+it('refuses a truncate from the client', function (): void {
+    SupabaseConnection::authenticateAs($this->memberUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->executeStatement('TRUNCATE TABLE participations CASCADE'))
+        ->toThrow(DriverException::class, 'permission denied for table participations');
+});
+
+// `anon` porta els seus propis grants: que `authenticated` el tingui tancat no
+// diu res del rol de la visitant sense loguejar.
+it('refuses a truncate from an anonymous caller', function (): void {
+    SupabaseConnection::asAnonRole();
+
+    expect(fn () => $this->connection->executeStatement('TRUNCATE TABLE participations CASCADE'))
+        ->toThrow(DriverException::class, 'permission denied for table participations');
+});

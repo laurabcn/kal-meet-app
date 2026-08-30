@@ -93,29 +93,39 @@ it('does not let a member schedule a meeting', function (): void {
         'url' => 'https://zoom.us/j/000',
         'scheduled_at' => '2026-08-20 18:00:00',
         'timezone' => 'Europe/Madrid',
-    ]))->toThrow(DriverException::class, 'row-level security policy');
+    ]))->toThrow(DriverException::class, 'permission denied for table meetings');
+});
+
+it('refuses a meeting scheduled from the client, even by the organizer', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->insert('meetings', [
+        'id' => UlidValue::generate()->value(),
+        'kal_id' => $this->fixture->kalId,
+        'title' => 'Kickoff call',
+        'url' => 'https://zoom.us/j/111',
+        'scheduled_at' => '2026-08-20 18:00:00',
+        'timezone' => 'Europe/Madrid',
+    ]))->toThrow(DriverException::class, 'permission denied for table meetings');
 });
 
 it('does not let a member move a meeting', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->memberUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $affected = $this->connection->executeStatement(
+    expect(fn () => $this->connection->executeStatement(
         'UPDATE meetings SET title = :title WHERE id = :id',
         ['title' => 'Hijacked', 'id' => $this->fixture->kalMeetingId],
-    );
-
-    expect($affected)->toBe(0);
+    ))->toThrow(DriverException::class, 'permission denied for table meetings');
 });
 
-it('lets the organizer move a meeting', function (): void {
+it('refuses a meeting moved from the client, even by the organizer', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $affected = $this->connection->executeStatement(
+    expect(fn () => $this->connection->executeStatement(
         'UPDATE meetings SET title = :title WHERE id = :id',
         ['title' => 'Moved', 'id' => $this->fixture->kalMeetingId],
-    );
-
-    expect($affected)->toBe(1);
+    ))->toThrow(DriverException::class, 'permission denied for table meetings');
 });
