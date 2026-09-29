@@ -154,8 +154,9 @@ Decidit el 2026-08-24, les tres coses alhora:
 
 Aquí és on viu de veritat la seguretat del xat: el frontend insereix i llegeix
 `debate_messages` directament amb `supabase-js`, i el backend només hi entra per
-la cascada del delete — amb service_role, o sigui **saltant-se RLS**. No hi ha
-cap capa d'aplicació que tapi un forat de policy.
+la cascada del delete — per Doctrine DBAL, connexió directa com a rol
+`postgres` (`bypassrls`), o sigui **saltant-se RLS**. No hi ha cap capa
+d'aplicació que tapi un forat de policy.
 
 ### Helpers: cap de nou
 
@@ -245,8 +246,8 @@ security definer
 set search_path = ''
 as $$
 begin
-    -- El backend (service_role, cascada del delete del KAL) no té auth.uid().
-    -- Nota: service_role salta RLS, però NO salta triggers.
+    -- El backend (connexió directa com a `postgres`, cascada del delete del
+    -- KAL) no té auth.uid(). Nota: `bypassrls` salta RLS, però NO salta triggers.
     if (select auth.uid()) is null then
         return new;
     end if;
