@@ -1,6 +1,14 @@
 # Spec: editar els idiomes d'un KAL
 
-> Status: **Draft**
+> Status: **Descartada** (2026-09-29)
+>
+> **No implementar.** El 2026-09-29 es va decidir que un KAL té **un sol
+> idioma**, fix des de la creació (`kals.locale`, migració
+> `20260929184110_kal_single_locale_single_file.sql`): ja no hi ha idiomes
+> habilitats que editar, i un KAL en dos idiomes són dos KALs. `aula-chat.md`
+> ha tornat a una aula per KAL, o sigui que tampoc queda cap aula per idioma a
+> la qual afecti. Es conserva com a registre del raonament.
+>
 > Escrit 2026-08-29. Neix de [`aula-chat.md`](aula-chat.md), que va decidir
 > **una aula de xat per idioma habilitat** i va deixar explícitament fora
 > l'edició d'idiomes: la invariant que se'n deriva es documentava allà però no
