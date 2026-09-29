@@ -21,7 +21,7 @@ function kalPayload(array $overrides = []): array
         'name' => 'KAL de tardor',
         'startsOn' => '2026-09-01 00:00:00',
         'endsOn' => '2026-10-01 00:00:00',
-        'locales' => ['ca', 'es'],
+        'locale' => 'ca',
         ...$overrides,
     ];
 }
@@ -49,7 +49,8 @@ it('hands the payload to the domain through the command bus', function (): void 
         ->and($kals[0]->id->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1W3')
         ->and($kals[0]->organizerId->value())->toBe(StubTokenHandler::USER_ID)
         ->and($kals[0]->startsOn->value())->toBe('2026-09-01 00:00:00')
-        ->and($kals[0]->locales->all())->toHaveCount(2)
+        ->and($kals[0]->locale->value())->toBe('ca')
+        ->and($kals[0]->file)->toBeNull()
         ->and($kals[0]->inviteToken->value())->not->toBeEmpty();
 });
 
@@ -71,10 +72,26 @@ it('answers 400 when the body is an empty json object', function (): void {
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
-it('answers 400 when locales is not a list', function (): void {
+it('answers 400 when locale is a list instead of a single code', function (): void {
     $client = static::createClient();
 
-    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['locales' => 'ca'])));
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['locale' => ['ca', 'es']])));
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
+});
+
+it('answers 400 when file is a list instead of a single object', function (): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['file' => [[
+        'fileName' => 'patro.pdf',
+        'filePath' => 'kal/patro.pdf',
+        'fileSize' => 1024,
+        'fileExtension' => 'pdf',
+        'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1A1',
+        'uploadedAt' => '2026-07-30 12:00:00',
+    ]]])));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');

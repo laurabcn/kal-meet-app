@@ -53,7 +53,7 @@ it('creates nothing at all when the request is unauthenticated', function (): vo
     $client->request('POST', '/kal', server: ['CONTENT_TYPE' => 'application/json'], content: (string) json_encode([
         'name' => 'KAL de tardor',
         'startsOn' => '2026-09-01 00:00:00',
-        'locales' => ['ca'],
+        'locale' => 'ca',
     ]));
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_UNAUTHORIZED);

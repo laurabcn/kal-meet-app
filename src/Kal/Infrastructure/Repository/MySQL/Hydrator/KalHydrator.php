@@ -12,11 +12,9 @@ use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\File;
 use App\Kal\Domain\FileExtension;
-use App\Kal\Domain\Files;
 use App\Kal\Domain\FileSize;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
-use App\Kal\Domain\Locales;
 use App\Kal\Domain\Meeting;
 use App\Kal\Domain\Meetings;
 use App\Shared\Domain\Exception\InvalidArgumentException;
@@ -88,15 +86,9 @@ final readonly class KalHydrator implements HydratorInterface
             description: null !== ($description = $this->optionalString($data, 'description'))
                 ? NonEmptyStringValue::create($description)
                 : null,
-            files: Files::create(array_map(
-                $this->hydrateKalFile(...),
-                self::parseRowList($data['files'] ?? []),
-            )),
+            file: $this->hydrateKalFile($data['files'] ?? []),
             clues: Clues::create($clues),
-            locales: Locales::create(array_map(
-                static fn (string $code): Locale => Locale::fromString($code),
-                self::parseStringList($data['locales'] ?? []),
-            )),
+            locale: Locale::fromString($this->requiredString($data, 'locale')),
             startsOn: DateTime::create($this->requiredDateTime($data, 'starts_on')),
             endsOn: null !== ($endsOn = $this->optionalDateTime($data, 'ends_on'))
                 ? DateTime::create($endsOn)
@@ -120,21 +112,20 @@ final readonly class KalHydrator implements HydratorInterface
      *         starts_on: string,
      *         ends_on: ?string,
      *         cover_path: ?string,
+     *         locale: string,
      *         invite_token: string,
      *         created_at: string,
      *         updated_at: string
      *     },
-     *     locales: list<array{kal_id: string, locale: string}>,
-     *     files: list<array{
+     *     file: ?array{
      *         upload_id: string,
      *         kal_id: string,
      *         file_name: string,
      *         file_path: string,
      *         file_size: int,
      *         file_extension: string,
-     *         locale: string,
      *         uploaded_at: string
-     *     }>,
+     *     },
      *     clues: list<array{
      *         id: string,
      *         kal_id: string,
@@ -143,12 +134,10 @@ final readonly class KalHydrator implements HydratorInterface
      *         starts_on: string,
      *         ends_on: string,
      *         updated_at: string,
-     *         locale: string,
      *         file_name: string,
      *         file_path: string,
      *         file_size: int,
      *         file_extension: string,
-     *         file_locale: string,
      *         file_upload_id: string,
      *         file_uploaded_at: string
      *     }>,
@@ -188,23 +177,14 @@ final readonly class KalHydrator implements HydratorInterface
                 'starts_on' => $object->startsOn->value(),
                 'ends_on' => $object->endsOn?->value(),
                 'cover_path' => $object->coverPath,
+                'locale' => $object->locale->value(),
                 'invite_token' => $object->inviteToken->value(),
                 'created_at' => $object->createdAt->value(),
                 // `kals.updated_at` és NOT NULL: un KAL que no s'ha tocat mai
                 // es va tocar per últim cop quan es va crear.
                 'updated_at' => $object->updatedAt?->value() ?? $object->createdAt->value(),
             ],
-            'locales' => array_values(array_map(
-                static fn (Locale $locale): array => [
-                    'kal_id' => $kalId,
-                    'locale' => $locale->value(),
-                ],
-                $object->locales->all(),
-            )),
-            'files' => array_values(array_map(
-                static fn (File $file): array => self::extractFile($kalId, $file),
-                $object->files->all(),
-            )),
+            'file' => null !== $object->file ? self::extractFile($kalId, $object->file) : null,
             'clues' => array_values(array_map(
                 static fn (Clue $clue): array => self::extractClue($kalId, $clue),
                 $object->clues->all(),
@@ -226,7 +206,6 @@ final readonly class KalHydrator implements HydratorInterface
      *     file_path: string,
      *     file_size: int,
      *     file_extension: string,
-     *     locale: string,
      *     uploaded_at: string
      * }
      */
@@ -239,7 +218,6 @@ final readonly class KalHydrator implements HydratorInterface
             'file_path' => $file->filePath->value(),
             'file_size' => $file->fileSize->value(),
             'file_extension' => $file->fileExtension->value(),
-            'locale' => $file->locale->value(),
             'uploaded_at' => $file->uploadedAt->value(),
         ];
     }
@@ -253,12 +231,10 @@ final readonly class KalHydrator implements HydratorInterface
      *     starts_on: string,
      *     ends_on: string,
      *     updated_at: string,
-     *     locale: string,
      *     file_name: string,
      *     file_path: string,
      *     file_size: int,
      *     file_extension: string,
-     *     file_locale: string,
      *     file_upload_id: string,
      *     file_uploaded_at: string
      * }
@@ -275,12 +251,10 @@ final readonly class KalHydrator implements HydratorInterface
             'starts_on' => $clue->startsOn->value(),
             'ends_on' => $clue->endsOn->value(),
             'updated_at' => $clue->updatedAt->value(),
-            'locale' => $clue->locale->value(),
             'file_name' => $file->fileName->value(),
             'file_path' => $file->filePath->value(),
             'file_size' => $file->fileSize->value(),
             'file_extension' => $file->fileExtension->value(),
-            'file_locale' => $file->locale->value(),
             'file_upload_id' => $file->uploadId->value(),
             'file_uploaded_at' => $file->uploadedAt->value(),
         ];
@@ -370,28 +344,6 @@ final readonly class KalHydrator implements HydratorInterface
     }
 
     /**
-     * @return list<string>
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function parseStringList(mixed $value): array
-    {
-        if (!is_array($value)) {
-            throw InvalidArgumentException::notAString();
-        }
-
-        $items = [];
-        foreach ($value as $item) {
-            if (!is_string($item)) {
-                throw InvalidArgumentException::notAString();
-            }
-            $items[] = $item;
-        }
-
-        return $items;
-    }
-
-    /**
      * @return list<array<string, mixed>>
      *
      * @throws InvalidArgumentException
@@ -422,19 +374,31 @@ final readonly class KalHydrator implements HydratorInterface
     }
 
     /**
-     * @param array<string, mixed> $row
+     * 0..1 files vives (índex `kal_files_kal_id_active_unique`). Més d'una =
+     * agregat trencat; no en triem una a l'atzar.
      *
      * @throws InvalidArgumentException
      * @throws KalFileException
+     * @throws KalStateException
      */
-    private function hydrateKalFile(array $row): File
+    private function hydrateKalFile(mixed $rows): ?File
     {
+        $rows = self::parseRowList($rows);
+        if ([] === $rows) {
+            return null;
+        }
+
+        if (1 !== \count($rows)) {
+            throw KalStateException::multipleKalFiles();
+        }
+
+        $row = $rows[0];
+
         return new File(
             NonEmptyStringValue::create($this->requiredString($row, 'file_name')),
             NonEmptyStringValue::create($this->requiredString($row, 'file_path')),
             FileSize::create($this->requiredInteger($row, 'file_size')),
             FileExtension::tryFromStatus($this->requiredString($row, 'file_extension')),
-            Locale::fromString($this->requiredString($row, 'locale')),
             UlidValue::create($this->requiredString($row, 'upload_id')),
             DateTime::create($this->requiredDateTime($row, 'uploaded_at')),
         );
@@ -454,7 +418,6 @@ final readonly class KalHydrator implements HydratorInterface
             NonEmptyStringValue::create($this->requiredString($row, 'file_path')),
             FileSize::create($this->requiredInteger($row, 'file_size')),
             FileExtension::tryFromStatus($this->requiredString($row, 'file_extension')),
-            Locale::fromString($this->requiredString($row, 'file_locale')),
             UlidValue::create($this->requiredString($row, 'file_upload_id')),
             DateTime::create($this->requiredDateTime($row, 'file_uploaded_at')),
         );
@@ -467,7 +430,6 @@ final readonly class KalHydrator implements HydratorInterface
                 : null,
             file: $file,
             meeting: $meeting,
-            locale: Locale::fromString($this->requiredString($row, 'locale')),
             startsOn: DateTime::create($this->requiredDateTime($row, 'starts_on')),
             endsOn: DateTime::create($this->requiredDateTime($row, 'ends_on')),
             updatedAt: DateTime::create($this->requiredDateTime($row, 'updated_at')),

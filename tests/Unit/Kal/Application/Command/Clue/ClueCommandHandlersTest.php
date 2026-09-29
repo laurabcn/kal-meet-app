@@ -30,13 +30,11 @@ function clueCommandPayload(): array
         'name' => 'Pista 2',
         'startsOn' => '2026-08-02 00:00:00',
         'endsOn' => '2026-08-07 00:00:00',
-        'locale' => 'ca',
         'file' => [
             'fileName' => 'pista-2.pdf',
             'filePath' => 'kal/clue/pista-2.pdf',
             'fileSize' => 184320,
             'fileExtension' => 'pdf',
-            'locale' => 'ca',
             'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1A1',
             'uploadedAt' => '2026-07-30 12:00:00',
         ],
@@ -106,7 +104,6 @@ it('updates only the keys present in the patch', function (): void {
     $written = $this->repository->writtenClues();
     expect($written[0]->name->value())->toBe('Després')
         ->and($written[0]->startsOn->value())->toBe($clue->startsOn->value())
-        ->and($written[0]->locale->value())->toBe($clue->locale->value())
         ->and($written[0]->file->uploadId->equals($clue->file->uploadId))->toBeTrue();
 });
 

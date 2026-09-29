@@ -115,20 +115,17 @@ it('does not let a member add a clue', function (): void {
         'name' => 'Sneaky round',
         'starts_on' => '2026-08-02 00:00:00',
         'ends_on' => '2026-08-09 00:00:00',
-        'locale' => 'ca',
         'file_name' => 'sneaky.pdf',
         'file_path' => 'kal-patterns/sneaky.pdf',
         'file_size' => 1024,
         'file_extension' => 'pdf',
-        'file_locale' => 'ca',
         'file_upload_id' => UlidValue::generate()->value(),
     ]))->toThrow(DriverException::class, 'permission denied for table clues');
 });
 
 // Una pista escrita des del client se saltaria la invariant que l'arrel fa
-// complir en PHP: que les dates caiguin dins del rang del Kal i que el `locale`
-// sigui un dels habilitats. La BD no sap comprovar-ho, per això no hi escriu
-// ningú més que el backend.
+// complir en PHP: que les dates caiguin dins del rang del Kal. La BD no sap
+// comprovar-ho, per això no hi escriu ningú més que el backend.
 it('refuses a clue added from the client, even by the organizer', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
     SupabaseConnection::asAuthenticatedRole();
@@ -139,12 +136,10 @@ it('refuses a clue added from the client, even by the organizer', function (): v
         'name' => 'New round',
         'starts_on' => '2026-08-02 00:00:00',
         'ends_on' => '2026-08-09 00:00:00',
-        'locale' => 'ca',
         'file_name' => 'round.pdf',
         'file_path' => 'kal-patterns/round.pdf',
         'file_size' => 1024,
         'file_extension' => 'pdf',
-        'file_locale' => 'ca',
         'file_upload_id' => UlidValue::generate()->value(),
     ]))->toThrow(DriverException::class, 'permission denied for table clues');
 });

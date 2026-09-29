@@ -146,6 +146,26 @@ it('answers 400 when the patch carries the meeting', function (): void {
         ->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
+it('answers 400 when the patch carries a locale, which clues inherit from the kal', function (): void {
+    $client = static::createClient();
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+    $kal = organizerKal($repository);
+    $clue = ClueMother::create();
+    $kal->addClue($clue);
+
+    $client->request(
+        'PATCH',
+        '/kal/'.$kal->id->value().'/clue/'.$clue->id->value(),
+        server: apiJsonHeaders(),
+        content: (string) json_encode(['locale' => 'es']),
+    );
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())
+        ->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
+});
+
 it('answers 400 when shortening a clue below its own meeting', function (): void {
     $client = static::createClient();
     /** @var InMemoryKalRepository $repository */

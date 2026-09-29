@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Infrastructure\Repository\MySQL\Hydrator\KalHydrator;
 use App\Shared\Domain\Exception\InvalidArgumentException;
@@ -11,11 +10,9 @@ use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
 use Tests\Unit\Kal\Domain\Mother\FileMother;
-use Tests\Unit\Kal\Domain\Mother\FilesMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
-use Tests\Unit\Shared\Domain\ValueObject\Mother\LocaleMother;
 
 beforeEach(function (): void {
     $this->hydrator = new KalHydrator();
@@ -24,8 +21,7 @@ beforeEach(function (): void {
 /**
  * @param array{
  *     kal: array<string, mixed>,
- *     locales: list<array{kal_id: string, locale: string}>,
- *     files: list<array<string, mixed>>,
+ *     file: ?array<string, mixed>,
  *     clues: list<array<string, mixed>>,
  *     meetings: list<array<string, mixed>>,
  *     debate_room: array<string, mixed>
@@ -37,8 +33,9 @@ function hydratePayloadFromExtract(array $extracted): array
 {
     return [
         ...$extracted['kal'],
-        'locales' => array_column($extracted['locales'], 'locale'),
-        'files' => $extracted['files'],
+        // El repositori llegeix `kal_files` com a llista (un SELECT per
+        // kal_id), encara que en pugui haver com a molt una de viva.
+        'files' => null !== $extracted['file'] ? [$extracted['file']] : [],
         'clues' => $extracted['clues'],
         'meetings' => $extracted['meetings'],
         // El repositori la llegeix com a llista (un SELECT per kal_id) encara
@@ -52,7 +49,7 @@ it('extracts the kal row and child rows ready for insert', function (): void {
         description: NonEmptyStringValue::create('Smoke'),
         endsOn: DateTime::create('2026-09-01 00:00:00'),
         coverPath: 'kals/id/portada.webp',
-        files: FilesMother::of(FileMother::create()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         meetings: MeetingsMother::of(MeetingMother::create()),
     );
@@ -60,7 +57,8 @@ it('extracts the kal row and child rows ready for insert', function (): void {
     $extracted = $this->hydrator->extract($kal);
     $kalId = $kal->id->value();
     $clue = $kal->clues->all()[0];
-    $file = $kal->files->all()[0];
+    $file = $kal->file;
+    assert(null !== $file);
     $meeting = $kal->meetings->all()[0];
 
     expect($extracted['kal'])->toBe([
@@ -71,24 +69,20 @@ it('extracts the kal row and child rows ready for insert', function (): void {
         'starts_on' => $kal->startsOn->value(),
         'ends_on' => $kal->endsOn?->value(),
         'cover_path' => 'kals/id/portada.webp',
+        'locale' => $kal->locale->value(),
         'invite_token' => $kal->inviteToken->value(),
         'created_at' => $kal->createdAt->value(),
         // `kals.updated_at` és NOT NULL: sense haver-se actualitzat mai,
         // l'extract hi escriu la data de creació.
         'updated_at' => $kal->createdAt->value(),
     ])
-        ->and($extracted['locales'])->toHaveCount(2)
-        ->and($extracted['locales'][0])->toHaveKeys(['kal_id', 'locale'])
-        ->and($extracted['locales'][0]['kal_id'])->toBe($kalId)
-        ->and($extracted['files'])->toHaveCount(1)
-        ->and($extracted['files'][0])->toMatchArray([
+        ->and($extracted['file'])->toMatchArray([
             'upload_id' => $file->uploadId->value(),
             'kal_id' => $kalId,
             'file_name' => $file->fileName->value(),
             'file_path' => $file->filePath->value(),
             'file_size' => $file->fileSize->value(),
             'file_extension' => $file->fileExtension->value(),
-            'locale' => $file->locale->value(),
         ])
         ->and($extracted['clues'])->toHaveCount(1)
         ->and($extracted['clues'][0]['id'])->toBe($clue->id->value())
@@ -117,8 +111,8 @@ it('round-trips a full aggregate through extract and hydrate', function (): void
         description: NonEmptyStringValue::create('Round trip'),
         endsOn: DateTime::create('2026-09-01 00:00:00'),
         coverPath: 'kals/id/portada.webp',
-        files: FilesMother::of(FileMother::create(LocaleMother::catalan())),
-        clues: CluesMother::of(ClueMother::create(locale: LocaleMother::catalan())),
+        file: FileMother::create(),
+        clues: CluesMother::of(ClueMother::create()),
         meetings: MeetingsMother::of(MeetingMother::create()),
     );
 
@@ -136,11 +130,9 @@ it('round-trips a full aggregate through extract and hydrate', function (): void
         // L'anada i tornada passa per una columna NOT NULL, o sigui que un
         // `updatedAt` null torna com la data de creació: és el que hi ha desat.
         ->and($hydrated->updatedAt?->value())->toBe($kal->createdAt->value())
-        ->and(array_map(static fn ($locale) => $locale->value(), $hydrated->locales->all()))
-            ->toEqualCanonicalizing(array_map(static fn ($locale) => $locale->value(), $kal->locales->all()))
-        ->and($hydrated->files->all())->toHaveCount(1)
-        ->and($hydrated->files->all()[0]->uploadId->equals($kal->files->all()[0]->uploadId))->toBeTrue()
-        ->and($hydrated->files->all()[0]->fileName->value())->toBe($kal->files->all()[0]->fileName->value())
+        ->and($hydrated->locale->equals($kal->locale))->toBeTrue()
+        ->and($hydrated->file?->uploadId->value())->toBe($kal->file?->uploadId->value())
+        ->and($hydrated->file?->fileName->value())->toBe($kal->file?->fileName->value())
         ->and($hydrated->clues->all())->toHaveCount(1)
         ->and($hydrated->clues->all()[0]->id->equals($kal->clues->all()[0]->id))->toBeTrue()
         ->and($hydrated->clues->all()[0]->meeting->id->equals($kal->clues->all()[0]->meeting->id))->toBeTrue()
@@ -158,7 +150,7 @@ it('hydrates nullable kal fields as null when absent', function (): void {
     expect($hydrated->description)->toBeNull()
         ->and($hydrated->endsOn)->toBeNull()
         ->and($hydrated->coverPath)->toBeNull()
-        ->and($hydrated->files->all())->toBeEmpty()
+        ->and($hydrated->file)->toBeNull()
         ->and($hydrated->clues->all())->toBeEmpty()
         ->and($hydrated->meetings->all())->toBeEmpty();
 });
@@ -178,13 +170,14 @@ it('hydrates dates from DateTimeInterface values', function (): void {
 });
 
 it('hydrates file_size from a numeric string', function (): void {
-    $kal = KalMother::create(files: FilesMother::of(FileMother::create()));
+    $file = FileMother::create();
+    $kal = KalMother::create(file: $file);
     $payload = hydratePayloadFromExtract($this->hydrator->extract($kal));
-    $payload['files'][0]['file_size'] = (string) $kal->files->all()[0]->fileSize->value();
+    $payload['files'][0]['file_size'] = (string) $file->fileSize->value();
 
     $hydrated = $this->hydrator->hydrate($payload);
 
-    expect($hydrated->files->all()[0]->fileSize->value())->toBe($kal->files->all()[0]->fileSize->value());
+    expect($hydrated->file?->fileSize->value())->toBe($file->fileSize->value());
 });
 
 it('throws when a clue row has no matching meeting', function (): void {
@@ -199,13 +192,22 @@ it('throws when a clue row has no matching meeting', function (): void {
         ->toThrow(KalStateException::class, 'A clue is missing its required meeting.');
 });
 
-it('throws when locales are empty', function (): void {
+it('throws when the kal row has no locale', function (): void {
     $kal = KalMother::create();
     $payload = hydratePayloadFromExtract($this->hydrator->extract($kal));
-    $payload['locales'] = [];
+    $payload['locale'] = null;
 
     expect(fn () => $this->hydrator->hydrate($payload))
-        ->toThrow(KalException::class, 'At least one locale must be enabled for the kal.');
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('throws when the kal has more than one active file', function (): void {
+    $kal = KalMother::create(file: FileMother::create());
+    $payload = hydratePayloadFromExtract($this->hydrator->extract($kal));
+    $payload['files'][] = $payload['files'][0];
+
+    expect(fn () => $this->hydrator->hydrate($payload))
+        ->toThrow(KalStateException::class, 'The kal has more than one active file.');
 });
 
 it('throws when a required string field is not a string', function (): void {

@@ -12,9 +12,7 @@ use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
 use Tests\Unit\Kal\Domain\Mother\FileMother;
-use Tests\Unit\Kal\Domain\Mother\FilesMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
-use Tests\Unit\Kal\Domain\Mother\LocalesMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
 use Tests\Unit\Shared\Domain\ValueObject\Mother\LocaleMother;
@@ -55,12 +53,25 @@ it('creates a kal with all optional fields populated', function (): void {
         ->and($kal->coverPath)->toBe($coverPath);
 });
 
-it('exposes the enabled locales of the kal', function (): void {
-    $kal = KalMother::create(locales: LocalesMother::catalanAndSpanish());
+it('exposes the single locale of the kal', function (): void {
+    $kal = KalMother::create(locale: LocaleMother::spanish());
 
-    expect($kal->locales->contains(LocaleMother::catalan()))->toBeTrue()
-        ->and($kal->locales->contains(LocaleMother::spanish()))->toBeTrue()
-        ->and($kal->locales->contains(LocaleMother::english()))->toBeFalse();
+    expect($kal->locale->equals(LocaleMother::spanish()))->toBeTrue();
+});
+
+it('creates a kal without a pattern file', function (): void {
+    $kal = KalMother::create();
+
+    expect($kal->file)->toBeNull();
+});
+
+it('creates a kal with its pattern file', function (): void {
+    $file = FileMother::create();
+
+    $kal = KalMother::create(file: $file);
+
+    expect($kal->file)->not->toBeNull()
+        ->and($kal->file?->uploadId->equals($file->uploadId))->toBeTrue();
 });
 
 it('creates a kal with clues that are all within range', function (): void {
@@ -172,67 +183,6 @@ it('accepts a clue whose ends on exactly matches the kal ends on', function (): 
     expect($kal->clues->all())->toHaveCount(1);
 });
 
-it('creates a kal when a file uses one of the enabled locales', function (): void {
-    $kal = KalMother::create(
-        locales: LocalesMother::catalanAndSpanish(),
-        files: FilesMother::withLocale(LocaleMother::spanish()),
-    );
-
-    expect($kal->locales->contains(LocaleMother::spanish()))->toBeTrue();
-});
-
-it('throws and creates no kal when a kal file uses a locale that is not enabled', function (): void {
-    KalMother::create(
-        locales: LocalesMother::catalanAndSpanish(),
-        files: FilesMother::withLocale(LocaleMother::english()),
-    );
-})->throws(KalException::class, 'A file locale is not enabled for this kal.');
-
-it('throws and creates no kal when an initial clue file uses a locale that is not enabled', function (): void {
-    $clueInEnglish = ClueMother::create(file: FileMother::withLocale(LocaleMother::english()));
-
-    KalMother::create(
-        locales: LocalesMother::catalanAndSpanish(),
-        clues: CluesMother::of($clueInEnglish),
-    );
-})->throws(KalException::class, 'A file locale is not enabled for this kal.');
-
-it('throws and creates no kal when an initial clue uses a locale that is not enabled', function (): void {
-    $clueInEnglish = ClueMother::create(locale: LocaleMother::english());
-
-    KalMother::create(
-        locales: LocalesMother::catalanAndSpanish(),
-        clues: CluesMother::of($clueInEnglish),
-    );
-})->throws(KalException::class, 'A clue locale is not enabled for this kal.');
-
-it('does not add a clue whose locale is not enabled', function (): void {
-    $kal = KalMother::create(locales: LocalesMother::catalanAndSpanish());
-    $clueInEnglish = ClueMother::create(locale: LocaleMother::english());
-
-    expect(fn () => $kal->addClue($clueInEnglish))
-        ->toThrow(KalException::class, 'A clue locale is not enabled for this kal.');
-    expect($kal->clues->all())->toBeEmpty();
-});
-
-it('adds a clue whose file uses an enabled locale', function (): void {
-    $kal = KalMother::create(locales: LocalesMother::catalanAndSpanish());
-    $clueInCatalan = ClueMother::create(file: FileMother::withLocale(LocaleMother::catalan()));
-
-    $kal->addClue($clueInCatalan);
-
-    expect($kal->clues->all())->toHaveCount(1);
-});
-
-it('does not add a clue whose file uses a locale that is not enabled', function (): void {
-    $kal = KalMother::create(locales: LocalesMother::catalanAndSpanish());
-    $clueInEnglish = ClueMother::create(file: FileMother::withLocale(LocaleMother::english()));
-
-    expect(fn () => $kal->addClue($clueInEnglish))
-        ->toThrow(KalException::class, 'A file locale is not enabled for this kal.');
-    expect($kal->clues->all())->toBeEmpty();
-});
-
 // --- inviteToken ---
 
 it('always generates an invite token at creation', function (): void {
@@ -312,9 +262,9 @@ it('reconstitutes a kal preserving id, invite token and timestamps instead of mi
         $organizerId,
         NonEmptyStringValue::create('Summer Shawl KAL'),
         null,
-        FilesMother::empty(),
+        null,
         CluesMother::empty(),
-        LocalesMother::catalanAndSpanish(),
+        LocaleMother::catalan(),
         DateTime::create('2026-08-01 00:00:00'),
         null,
         null,
@@ -343,9 +293,9 @@ it('rejects reconstituting a kal whose persisted clues fall outside its range', 
         UlidValue::generate(),
         NonEmptyStringValue::create('Summer Shawl KAL'),
         null,
-        FilesMother::empty(),
+        null,
         CluesMother::of($clueOutsideRange),
-        LocalesMother::catalanAndSpanish(),
+        LocaleMother::catalan(),
         DateTime::create('2026-08-01 00:00:00'),
         null,
         null,

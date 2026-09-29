@@ -10,8 +10,8 @@ use App\Shared\Domain\ValueObject\UlidValue;
 
 /**
  * Vista de llista d'un KAL: prou per pintar una targeta, sense reconstruir
- * l'agregat. Un `Kal` sencer demana locales, files, clues, meetings i l'aula
- * — cinc consultes per fila que la llista no fa servir. No té invariants
+ * l'agregat. Un `Kal` sencer demana fitxer, clues, meetings i l'aula
+ * — quatre consultes per fila que la llista no fa servir. No té invariants
  * perquè no és una arrel: no s'hi escriu mai.
  */
 final readonly class KalSummary

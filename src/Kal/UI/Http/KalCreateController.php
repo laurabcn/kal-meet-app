@@ -59,8 +59,8 @@ final readonly class KalCreateController
             $organizerId,
             self::requiredString($payload, 'name'),
             self::requiredString($payload, 'startsOn'),
-            self::requiredList($payload, 'locales'),
-            self::optionalList($payload, 'files'),
+            self::requiredString($payload, 'locale'),
+            self::optionalObject($payload, 'file'),
             self::optionalList($payload, 'clues'),
             self::optionalString($payload, 'description'),
             self::optionalString($payload, 'endsOn'),
@@ -136,15 +136,20 @@ final readonly class KalCreateController
     /**
      * @param array<array-key, mixed> $payload
      *
-     * @return list<mixed>
+     * @return array<array-key, mixed>|null
      *
      * @throws InvalidArgumentException
      */
-    private static function requiredList(array $payload, string $key): array
+    private static function optionalObject(array $payload, string $key): ?array
     {
         $value = $payload[$key] ?? null;
 
-        if (!\is_array($value) || !array_is_list($value) || [] === $value) {
+        if (null === $value) {
+            return null;
+        }
+
+        // Un objecte JSON, no una llista: `files: [...]` ja no existeix.
+        if (!\is_array($value) || array_is_list($value)) {
             throw InvalidArgumentException::invalidPayload();
         }
 

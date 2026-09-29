@@ -24,21 +24,6 @@ final class KalException extends DomainException
         return new self('kal_clue_limit_reached', 'A kal cannot hold more than 24 clues.');
     }
 
-    public static function noLocalesEnabled(): self
-    {
-        return new self('kal_no_locales_enabled', 'At least one locale must be enabled for the kal.');
-    }
-
-    public static function fileLocaleNotEnabled(): self
-    {
-        return new self('kal_file_locale_not_enabled', 'A file locale is not enabled for this kal.');
-    }
-
-    public static function clueLocaleNotEnabled(): self
-    {
-        return new self('kal_clue_locale_not_enabled', 'A clue locale is not enabled for this kal.');
-    }
-
     public static function meetingOutsideClueRange(): self
     {
         return new self('kal_meeting_outside_clue_range', 'A meeting is scheduled outside its clue date range.');
