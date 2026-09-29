@@ -21,7 +21,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 #[AsController]
 final readonly class KalUpdateController
 {
-    private const array REJECTED_FIELDS = ['id', 'organizerId', 'inviteToken', 'locale', 'file', 'clues', 'meetings'];
+    private const array REJECTED_FIELDS = ['id', 'organizerId', 'inviteToken', 'locale', 'locales', 'file', 'files', 'clues', 'meetings'];
 
     public function __construct(
         private CommandBusInterface $commandBus,

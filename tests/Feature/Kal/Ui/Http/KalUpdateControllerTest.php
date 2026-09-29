@@ -263,6 +263,8 @@ it('answers 400 and leaves the kal untouched when the patch carries a fixed fiel
         ->and($stored->file)->toBeNull();
 })->with([
     'locale' => [['locale' => 'es']],
+    'locales (old contract)' => [['locales' => ['es']]],
+    'files (old contract)' => [['files' => []]],
     'file' => [['file' => [
         'fileName' => 'patro.pdf',
         'filePath' => 'kal/patro.pdf',

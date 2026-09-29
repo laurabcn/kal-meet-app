@@ -97,6 +97,82 @@ it('answers 400 when file is a list instead of a single object', function (): vo
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
+/** @return array<string, mixed> */
+function kalFilePayload(): array
+{
+    return [
+        'fileName' => 'patro.pdf',
+        'filePath' => 'kal/patro.pdf',
+        'fileSize' => 1024,
+        'fileExtension' => 'pdf',
+        'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1A1',
+        'uploadedAt' => '2026-07-30 12:00:00',
+    ];
+}
+
+it('creates a kal with its pattern file', function (): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['file' => kalFilePayload()])));
+
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+    $kals = $repository->all();
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED)
+        ->and($kals)->toHaveCount(1)
+        ->and($kals[0]->file?->fileName->value())->toBe('patro.pdf')
+        ->and($kals[0]->file?->uploadId->value())->toBe('01J5M6XQBR4GTYHN8KZXP0F1A1');
+});
+
+it('creates a kal without a file when file is null', function (): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['file' => null])));
+
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_CREATED)
+        ->and($repository->all()[0]->file)->toBeNull();
+});
+
+it('answers 400 and creates nothing when the file is not a valid file object', function (mixed $file): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload(['file' => $file])));
+
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}')
+        ->and($repository->all())->toBeEmpty();
+})->with([
+    'empty object' => [new stdClass()],
+    'scalar' => ['patro.pdf'],
+    'missing fileName' => [array_diff_key(kalFilePayload(), ['fileName' => true])],
+    'carrying its own locale' => [[...kalFilePayload(), 'locale' => 'ca']],
+]);
+
+// El contracte antic: ignorar-les crearia el KAL sense el que el client creu
+// que ha enviat.
+it('answers 400 and creates nothing when the body uses the old plural keys', function (array $legacy): void {
+    $client = static::createClient();
+
+    $client->request('POST', '/kal', server: apiJsonHeaders(), content: (string) json_encode(kalPayload($legacy)));
+
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}')
+        ->and($repository->all())->toBeEmpty();
+})->with([
+    'locales' => [['locales' => ['ca']]],
+    'files' => [['files' => [kalFilePayload()]]],
+]);
+
 it('rejects a body carrying organizerId, even if it matches the token', function (): void {
     $client = static::createClient();
 

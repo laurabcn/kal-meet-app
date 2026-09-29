@@ -316,6 +316,42 @@ it('fails when a clue payload carries no meeting', function (): void {
     ($this->handler)($command);
 })->throws(InvalidArgumentException::class, 'The request payload is invalid.');
 
+it('fails and persists nothing when an embedded clue carries a locale', function (): void {
+    $command = new CreateKalCommand(
+        id: '01J5M6XQBR4GTYHN8KZXP0F1W3',
+        organizerId: '01J5M6XQBR4GTYHN8KZXP0F1W2',
+        name: 'Clue with locale',
+        startsOn: '2026-08-01 00:00:00',
+        locale: 'ca',
+        clues: [
+            [
+                'name' => 'Round 1',
+                'startsOn' => '2026-08-01 00:00:00',
+                'endsOn' => '2026-08-08 00:00:00',
+                'locale' => 'es',
+                'file' => [
+                    'fileName' => 'round-1.pdf',
+                    'filePath' => 'kals/clue-locale/round-1.pdf',
+                    'fileSize' => 1024,
+                    'fileExtension' => 'pdf',
+                    'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1W4',
+                    'uploadedAt' => '2026-07-25 10:00:00',
+                ],
+                'meeting' => [
+                    'scheduledAt' => '2026-08-03 18:00:00',
+                    'url' => 'https://zoom.us/j/round-1',
+                    'title' => 'Round 1 live session',
+                ],
+            ],
+        ],
+        endsOn: '2026-09-01 00:00:00',
+    );
+
+    expect(fn () => ($this->handler)($command))
+        ->toThrow(InvalidArgumentException::class, 'The request payload is invalid.');
+    expect($this->repository->all())->toBeEmpty();
+});
+
 it('does not persist anything when domain validation fails', function (): void {
     $command = new CreateKalCommand(
         id: '01J5M6XQBR4GTYHN8KZXP0F1W3',

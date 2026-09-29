@@ -33,6 +33,7 @@ final readonly class CluePayloadFactory
      */
     public static function clue(UlidValue $id, array $data): Clue
     {
+        self::rejectInheritedLocale($data);
         $description = self::nullableString($data, 'description');
 
         return Clue::create(
@@ -54,6 +55,8 @@ final readonly class CluePayloadFactory
      */
     public static function file(array $data): File
     {
+        self::rejectInheritedLocale($data);
+
         return new File(
             NonEmptyStringValue::create(self::string($data, 'fileName')),
             NonEmptyStringValue::create(self::string($data, 'filePath')),
@@ -118,6 +121,22 @@ final readonly class CluePayloadFactory
         }
 
         return $value;
+    }
+
+    /**
+     * Pistes i fitxers hereten l'idioma del KAL. Un `locale` aquí és un client
+     * amb el contracte antic: ignorar-lo en silenci li faria creure que s'ha
+     * desat.
+     *
+     * @param array<array-key, mixed> $data
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function rejectInheritedLocale(array $data): void
+    {
+        if (\array_key_exists('locale', $data)) {
+            throw InvalidArgumentException::invalidPayload();
+        }
     }
 
     /** @throws InvalidArgumentException */

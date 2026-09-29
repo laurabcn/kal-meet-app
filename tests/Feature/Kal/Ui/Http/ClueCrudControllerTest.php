@@ -64,6 +64,35 @@ it('answers 400 when the clue payload has no meeting', function (): void {
         ->and($kal->clues->all())->toBeEmpty();
 });
 
+// Pista i fitxer hereten l'idioma del KAL, com al PATCH: un `locale` és 400,
+// no un camp que s'ignora.
+it('answers 400 when the clue or its file carries a locale', function (array $payload): void {
+    $client = static::createClient();
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+    $kal = organizerKal($repository);
+
+    $client->request(
+        'POST',
+        '/kal/'.$kal->id->value().'/clue',
+        server: apiJsonHeaders(),
+        content: (string) json_encode($payload),
+    );
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())
+        ->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}')
+        ->and($kal->clues->all())->toBeEmpty();
+})->with([
+    'clue' => [cluePayload(['locale' => 'es'])],
+    'file' => [(static function (): array {
+        $payload = cluePayload();
+        $payload['file']['locale'] = 'es';
+
+        return $payload;
+    })()],
+]);
+
 it('answers 400 when the clue falls outside the kal range', function (): void {
     $client = static::createClient();
     /** @var InMemoryKalRepository $repository */

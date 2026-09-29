@@ -21,6 +21,12 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 #[AsController]
 final readonly class KalCreateController
 {
+    /**
+     * `organizerId` surt del token. `locales` i `files` són el contracte antic:
+     * ignorar-los crearia el KAL sense el que el client creu que ha enviat.
+     */
+    private const array REJECTED_FIELDS = ['organizerId', 'locales', 'files'];
+
     public function __construct(
         private CommandBusInterface $commandBus,
     ) {
@@ -52,7 +58,9 @@ final readonly class KalCreateController
      */
     private static function buildCommand(array $payload, string $organizerId): CreateKalCommand
     {
-        self::rejectTokenDerived($payload, 'organizerId');
+        foreach (self::REJECTED_FIELDS as $field) {
+            self::rejectField($payload, $field);
+        }
 
         return new CreateKalCommand(
             self::requiredUlid($payload, 'id'),
@@ -90,7 +98,7 @@ final readonly class KalCreateController
      *
      * @throws InvalidArgumentException
      */
-    private static function rejectTokenDerived(array $payload, string $key): void
+    private static function rejectField(array $payload, string $key): void
     {
         if (\array_key_exists($key, $payload)) {
             throw InvalidArgumentException::invalidPayload();

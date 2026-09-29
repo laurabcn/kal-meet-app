@@ -138,6 +138,7 @@ it('maps every corrupted-state error to 500, whatever its code', function (
     'debate room gone' => [fn () => KalStateException::missingDebateRoom(), 'kal_debate_room_missing'],
     'clue with no meeting' => [fn () => KalStateException::missingClueMeeting(), 'kal_clue_meeting_missing'],
     'not a kal' => [fn () => KalStateException::invalidKal(), 'kal_invalid'],
+    'more than one active file' => [fn () => KalStateException::multipleKalFiles(), 'kal_multiple_files'],
     'no entropy' => [fn () => KalStateException::inviteTokenGenerationFailed(), 'kal_invite_token_generation_failed'],
     'invalid stored profile id' => [fn () => UserException::invalidStoredProfileId(), 'user_invalid_stored_profile_id'],
 ]);
