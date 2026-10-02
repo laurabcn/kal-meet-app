@@ -4,6 +4,11 @@
 > Escrit 2026-08-03 · Aprovat 2026-08-04. Completa el hand-off de
 > [`api-response.md`](api-response.md) (reads amb envelope `data`) i exposa
 > l’`inviteToken` generat al create.
+>
+> **Update 2026-09-29:** un KAL té un sol idioma i com a molt un PDF de patró
+> (migració `20260929184110_kal_single_locale_single_file.sql`). `locales` passa
+> a `locale` (string) i `files` a `file` (objecte o `null`); les pistes i els
+> fitxers ja no porten `locale`. L'exemple de sota ja reflecteix el contracte nou.
 
 ---
 
@@ -46,17 +51,17 @@ l’enllaç d’invitació. Sense un GET, la feature 2 (join) i la UI d’edici�
     "startsOn": "...",
     "endsOn": null,
     "coverPath": null,
-    "locales": ["ca", "es"],
+    "locale": "ca",
     "inviteToken": "<opaque>",
     "meetings": [],
     "clues": [],
-    "files": []
+    "file": null
   }
 }
 ```
 
   Sense `organizerId` a `data` (ja surt del token). Nested `meetings` /
-  `clues` / `files`: la mateixa informació que ja es persisteix al create
+  `clues` / `file`: la mateixa informació que ja es persisteix al create
   (mirallar el graf; sense inventar camps nous).
 
 - Només l’**organitzadora** (`kals.organizer_id` = `profiles.id` del token).
@@ -114,7 +119,7 @@ l’enllaç d’invitació. Sense un GET, la feature 2 (join) i la UI d’edici�
 
 - **Sense `organizerId` a `data`**: redundant amb el token; el FE ja el té.
 - **Shape nested**: mirallar el payload/graf del create (meetings, clues amb
-  file+meeting, files), no una vista mínima separada.
+  file+meeting, file), no una vista mínima separada.
 - **Errors**: cos dual `error` (llegible) + `code` (estable); status per
   `instanceof`, no pel text del missatge.
 
