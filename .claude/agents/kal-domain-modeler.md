@@ -17,13 +17,19 @@ from the code fast enough, plus the traps that have already cost real time.
 
 | Piece | Shape |
 |---|---|
-| `Kal` | root: id, organizerId, name, description?, files, clues, locales, startsOn, endsOn?, coverPath?, inviteToken, meetings, createdAt, updatedAt |
-| `Clue` | entity: id, name, description?, **file** (1:1, embedded), **meeting** (1:1, required), **locale**, startsOn (release date), endsOn, updatedAt |
+| `Kal` | root: id, organizerId, name, description?, **file?** (0..1 pattern PDF), clues, **locale** (one, fixed at creation), startsOn, endsOn?, coverPath?, inviteToken, meetings, debateRoom (exactly one), createdAt, updatedAt?, deletedAt? |
+| `Clue` | entity: id, name, description?, **file** (1:1, embedded), **meeting** (1:1, required), startsOn (release date), endsOn, updatedAt — **no locale**, it inherits the KAL's |
 | `Meeting` | entity: id, scheduledAt, url (`HttpsUrl`), title, timezone (default `Europe/Madrid`) |
-| `File` | value object: fileName, filePath, fileSize, fileExtension, locale, uploadId, uploadedAt |
-| `Clues` / `Files` / `Meetings` / `Locales` | collections, each with `create(array $x)` + `all()` + `add()` |
+| `File` | value object: fileName, filePath, fileSize, fileExtension, uploadId, uploadedAt — **no locale** |
+| `Clues` / `Meetings` | collections: `create(array $x)` + `all()` + `add()`; `Clues` also `get()` / `replace()` / `remove()` / `count()` |
+| `DebateRoom` | entity: id, createdAt — one per KAL, born with it |
 | `InviteToken` | value object, 32 chars, `generate()` / `fromString()` |
-| `KalRepositoryInterface` | the port: `create(Kal $kal): void`, `findById(string $id): ?Kal` |
+| `KalRepositoryInterface` | the port: `create` / `update` / `delete` of the KAL, `addClue` / `updateClue` / `deleteClue`, and the reads `findById(UlidValue $id, UlidValue $organizerId): Kal` (throws `KalNotFoundException`, never returns null), `getActiveById`, `findByToken`, `findAllByOrganizer` |
+
+**One KAL, one language** (decided 2026-09-29). There are no "enabled locales":
+a KAL in two languages is two KALs. Do not add a `locale` back to `Clue` or
+`File`, and do not reintroduce a `Locales` / `Files` collection without the
+architect reopening that decision.
 
 Shared primitives live in `src/Shared/Domain/ValueObject/`: `UlidValue`,
 `DateTime`, `NonEmptyStringValue`, `Locale`, `HttpsUrl`, `Url`. Use them instead
@@ -38,10 +44,10 @@ every caller — `Application/`, `Infrastructure/`, and the Object Mothers.
 
 1. **The model exposes properties, not getters.** Entities use PHP asymmetric
    visibility (`public private(set) readonly UlidValue $id`), so it is
-   `$kal->id`, `$clue->file->locale`, `$meeting->timezone` — never `$kal->id()`.
+   `$kal->id`, `$clue->file->fileName`, `$meeting->timezone` — never `$kal->id()`.
    Collections do have real methods (`$kal->clues->all()`).
 2. **Collections take a plain array, not variadics.** `Clues::create([$a, $b])`,
-   `Locales::create([])`. A leftover spread (`create(...$items)`) type-errors at
+   `Meetings::create([])`. A leftover spread (`create(...$items)`) type-errors at
    runtime and PHPStan will not always catch it through `array_map`.
 
 ## Where invariants live
@@ -49,14 +55,13 @@ every caller — `Application/`, `Infrastructure/`, and the Object Mothers.
 Guards are private statics on the class that owns the rule, throwing
 `KalException` with a **code** (`kal_clue_outside_range`), never a sentence.
 
-- `Kal::create()` — KAL date range; every clue inside the KAL range; every KAL
-  file's locale enabled; every clue's *file* locale enabled; every clue's own
-  locale enabled. `addClue()` repeats the per-clue ones, `addMeeting()` guards
-  nothing.
+- `Kal::create()` — clue limit (`MAX_CLUES`, technical cap); KAL date range;
+  every clue inside the KAL range. `reconstitute()` repeats the range checks but
+  not the limit. `addClue()` repeats the per-clue ones, `updateClue()` re-checks
+  the range, `addMeeting()` guards nothing.
 - `Clue::create()` — clue date range; the clue's meeting falls **within the clue's
   own range**, bounds inclusive (the KAL range already contains the clue, so
   checking against it would be weaker).
-- `Locales::create()` — non-empty, then dedupe by normalized value.
 - `Meeting::create()` — valid IANA timezone.
 
 `scheduledAt` is the organizer's local time and is parsed with her timezone, not
@@ -65,9 +70,11 @@ the server's. That is why `Meeting` carries `timezone` at all.
 ## Domain versus schema — do not confuse the two
 
 `supabase/migrations/` enforces shapes; it cannot enforce relationships between
-aggregate parts. Concretely: `clues.locale` has a check constraint for the ISO
-two-letter *format*, but "must be one of the KAL's enabled locales" is a rule
-**only the domain applies**. When you add an invariant, say explicitly which
+aggregate parts. Concretely: `clues_date_range` checks a clue's own
+`ends_on > starts_on`, but "the clue falls inside the KAL's range" is a rule
+**only the domain applies**. The reverse also happens: "at most one live file
+per KAL" is enforced by both — `?File` in the domain and the partial unique
+index `kal_files_kal_id_active_unique` in the schema. When you add an invariant, say explicitly which
 side enforces it, and if you claim the domain does, verify the guard exists —
 documentation that promises a guard nobody wrote is worse than no documentation.
 
@@ -86,7 +93,7 @@ Migrations are never written by hand: use the `creating-migration-files` skill.
 ## How you work
 
 1. Read the classes you are about to touch, plus their Object Mothers in
-   `tests/Kal/Domain/Mother/` — the mothers are the fastest map of the real
+   `tests/Unit/Kal/Domain/Mother/` — the mothers are the fastest map of the real
    construction API.
 2. Propose before building when the change is a modelling decision (a new
    entity, a rule that could live in two places, a nullable that could be

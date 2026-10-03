@@ -238,6 +238,43 @@ it('answers 400 when inviteToken is sent in the body', function (): void {
         ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}');
 });
 
+// L'idioma es fixa en crear el KAL, i el fitxer no té camí d'edició per PATCH.
+it('answers 400 and leaves the kal untouched when the patch carries a fixed field', function (array $patch): void {
+    $client = static::createClient();
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+
+    $kal = KalMother::create(organizerId: UlidValue::create(StubTokenHandler::USER_ID));
+    $repository->create($kal);
+
+    $client->request(
+        'PATCH',
+        '/kal/'.$kal->id->value(),
+        server: apiJsonHeaders(),
+        content: (string) json_encode(['name' => 'X', ...$patch]),
+    );
+
+    $stored = $repository->findById($kal->id, $kal->organizerId);
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"The request payload is invalid.","code":"invalid_payload"}')
+        ->and($stored->name->value())->toBe($kal->name->value())
+        ->and($stored->locale->value())->toBe('ca')
+        ->and($stored->file)->toBeNull();
+})->with([
+    'locale' => [['locale' => 'es']],
+    'locales (old contract)' => [['locales' => ['es']]],
+    'files (old contract)' => [['files' => []]],
+    'file' => [['file' => [
+        'fileName' => 'patro.pdf',
+        'filePath' => 'kal/patro.pdf',
+        'fileSize' => 1024,
+        'fileExtension' => 'pdf',
+        'uploadId' => '01J5M6XQBR4GTYHN8KZXP0F1A1',
+        'uploadedAt' => '2026-07-30 12:00:00',
+    ]]],
+]);
+
 it('answers 400 when the date range is invalid', function (): void {
     $client = static::createClient();
     /** @var InMemoryKalRepository $repository */

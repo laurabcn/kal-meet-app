@@ -6,6 +6,12 @@
 > editar ni esborrar per separat. Hereta les decisions de
 > [`get-kal.md`](get-kal.md) (envelope `data`, 404 sense filtrar existència) i
 > del `CLAUDE.md` § «Dues superfícies d'API» i § «Soft delete: com s'esborra».
+>
+> **Update 2026-09-29:** un KAL té un sol idioma i les pistes i els seus PDFs
+> l'hereten. Ja no existeix l'invariant de «locale habilitat» ni els codis
+> `kal_clue_locale_not_enabled` / `kal_file_locale_not_enabled`: un `locale` a
+> la pista o al fitxer (POST o PATCH) és `400 invalid_payload`. Aquesta spec ja
+> està actualitzada amb el contracte nou.
 
 ---
 
@@ -27,7 +33,7 @@ i deixa fora les participants que ja s'hi havien apuntat.
 
 - L'organitzadora pot afegir, editar i retirar pistes d'un KAL ja creat.
 - Els invariants de l'agregat es mantenen a cada escriptura: les dates de la
-  pista cauen dins del rang del KAL, i el seu `locale` és un dels habilitats.
+  pista cauen dins del rang del KAL.
 - Retirar una pista no deixa la seva reunió òrfena ni visible.
 - El contracte d'errors i d'autorització és el mateix que la resta del CRUD:
   organitzadora o 404.
@@ -106,13 +112,11 @@ hagi d'aprendre dos formats de la mateixa cosa. `file` i `meeting` són
   "description": "Opcional",
   "startsOn": "2026-08-15 00:00:00",
   "endsOn": "2026-08-22 00:00:00",
-  "locale": "ca",
   "file": {
     "fileName": "pista-2.pdf",
     "filePath": "{kal_id}/{clue_id}/pista.pdf",
     "fileSize": 184320,
     "fileExtension": "pdf",
-    "locale": "ca",
     "uploadId": "<ulid>",
     "uploadedAt": "2026-08-10 12:00:00"
   },
@@ -132,8 +136,9 @@ ell hauria de refer un `GET /kal/{id}` sencer per saber què acaba de crear.
 ### `PATCH /kal/{kalId}/clue/{clueId}`
 
 Només claus escalars, totes opcionals: `name`, `description`, `startsOn`,
-`endsOn`, `locale`. `description` accepta `null` per buidar-la; la resta, si hi
-són, han de portar valor.
+`endsOn`. `description` accepta `null` per buidar-la; la resta, si hi són, han
+de portar valor. `locale` no hi és: la pista parla l'idioma del KAL, i enviar-lo
+és `400 invalid_payload`.
 
 ```json
 { "name": "Pista 2 — el cos", "endsOn": "2026-08-25 00:00:00" }
@@ -160,7 +165,7 @@ d'excepció (`instanceof`), no pel text.
 | Cos que no és JSON | 400 | `invalid_json` |
 | `endsOn` <= `startsOn` de la pista | 400 | `kal_invalid_date_range` |
 | Dates de la pista fora del rang del KAL | 400 | `kal_clue_outside_range` |
-| `locale` de la pista no habilitat al KAL | 400 | `kal_clue_locale_not_enabled` |
+| `locale` a la pista o al seu fitxer | 400 | `invalid_payload` |
 | Sense JWT | 401 | — |
 | Escriptura fallida a Postgres | 500 | `kal_persistence_failed` |
 
@@ -185,10 +190,9 @@ com la resta.
 
 5. Pista amb dates fora del rang del KAL → `400 kal_clue_outside_range`, res
    escrit.
-6. Pista amb un `locale` no habilitat al KAL → `400 kal_clue_locale_not_enabled`.
-   Ho fa complir el domini: la BD només valida el format ISO
-   (`clues_locale_iso`).
-7. PDF amb un `locale` no habilitat → `400 kal_file_locale_not_enabled`.
+6. Pista amb `locale` → `400 invalid_payload`. L'hereta del KAL; acceptar-lo i
+   ignorar-lo faria creure al client que s'ha desat.
+7. PDF de la pista amb `locale` → `400 invalid_payload`, pel mateix motiu.
 8. **PATCH que deixa la reunió fora del nou rang** → `400
    kal_meeting_outside_clue_range` i **no es desa res**. Veure Risks: mentre no
    hi hagi endpoint de reunió, això deixa l'organitzadora sense sortida per
@@ -214,7 +218,7 @@ com la resta.
       mateixa transacció, i no esborra cap fila.
 - [ ] `GET /kal/{id}` deixa de retornar la pista esborrada i la seva reunió, i
       segueix retornant les altres.
-- [ ] Els invariants de rang i de locale es validen **al domini**, no al
+- [ ] Els invariants de rang es validen **al domini**, no al
       controller ni a la BD, i cap violació deixa res escrit.
 - [ ] Un `clueId` d'un altre KAL dona `404 clue_not_found`.
 - [ ] El `GET /kal/{id}` retorna les pistes ordenades per `starts_on`, i l'ordre
@@ -248,7 +252,7 @@ com la resta.
 - **RLS.** Aquests endpoints van amb la service_role key i **salten RLS**, així
   que el filtre `deleted_at IS NULL` ha de ser al repositori, no confiar en les
   policies. Les policies existents ja cobreixen el client directe.
-- **Cost.** Cada escriptura carrega l'agregat sencer (sis consultes) per validar.
+- **Cost.** Cada escriptura carrega l'agregat sencer (cinc consultes) per validar.
   Acceptat: són operacions d'organitzadora, poc freqüents, i és el preu de no
   poder escriure una pista que trenqui el KAL.
 
@@ -256,7 +260,7 @@ com la resta.
 
 - **Substituir el PDF d'una pista.** Demana pensar què passa amb el fitxer antic
   a Storage (esborrar-lo? deixar-lo orfe?) i això és una decisió pròpia.
-- **Editar la reunió d'una pista** i afegir-ne de noves per idioma (Fase 2).
+- **Editar la reunió d'una pista.**
 - **`GET` d'una pista solta.** Ja surten al `GET /kal/{id}`.
 - **Reordenar pistes** amb una columna `position`.
 - **Restaurar** una pista esborrada. Lligat a la qüestió oberta del restore de
@@ -295,7 +299,7 @@ pena l'excepció; queda escrit perquè no sembli una relliscada.
 
 ### D2. Les reunions de KAL no es validen contra cap rang — i es queda així
 
-`Kal::create()` comprova dates pròpies, pistes dins del rang i locales, però
+`Kal::create()` comprova dates pròpies i pistes dins del rang, però
 **cap guarda mira les seves pròpies reunions**: es pot programar una trobada de
 KAL tres mesos després que el KAL acabi. Les de pista sí que estan protegides
 (`guardMeetingWithinRange` a `Clue::create()`).
@@ -336,8 +340,7 @@ decisió.
 
 - **Carregar l'agregat a cada escriptura** en comptes d'un `ClueRepository` que
   escrigui directament. Es paga un SELECT del KAL sencer per operació i es
-  guanya que cap pista pugui néixer amb dates fora del rang o un locale no
-  habilitat, perquè l'arrel sempre hi és pel mig.
+  guanya que cap pista pugui néixer amb dates fora del rang, perquè l'arrel sempre hi és pel mig.
 - **`PATCH` només escalars.** Una crida per canviar el nom i una altra (futura)
   per moure la trobada, en comptes d'un PUT que ho reemplaci tot. Manté el
   contracte petit i igual que el `PATCH /kal/{id}`; el preu és l'encallada de

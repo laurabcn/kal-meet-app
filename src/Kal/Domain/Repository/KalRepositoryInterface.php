@@ -26,7 +26,7 @@ interface KalRepositoryInterface
 
     /**
      * Persists scalar Kal fields already mutated on the aggregate.
-     * Does not touch locales, files, clues, meetings or debate rooms.
+     * Does not touch locale, file, clues, meetings or debate rooms.
      *
      * @throws KalNotFoundException
      * @throws KalStateException

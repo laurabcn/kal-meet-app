@@ -12,7 +12,6 @@ use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Shared\Application\Command\CommandHandlerInterface;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
-use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -66,11 +65,7 @@ final readonly class UpdateClueCommandHandler implements CommandHandlerInterface
             ? DateTime::create($command->changes['endsOn'])
             : $current->endsOn;
 
-        $locale = \array_key_exists('locale', $command->changes)
-            ? Locale::fromString($command->changes['locale'])
-            : $current->locale;
-
-        $updated = $kal->updateClue($clueId, $name, $description, $startsOn, $endsOn, $locale);
+        $updated = $kal->updateClue($clueId, $name, $description, $startsOn, $endsOn);
 
         $this->kalRepository->updateClue($kalId, $updated);
     }

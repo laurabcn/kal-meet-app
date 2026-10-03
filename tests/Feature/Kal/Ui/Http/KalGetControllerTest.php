@@ -30,7 +30,8 @@ it('answers 200 with the organizer view including the invite token', function ()
         ->and($body['data'])->not->toHaveKey('organizerId')
         ->and($body['data']['meetings'])->toBe([])
         ->and($body['data']['clues'])->toBe([])
-        ->and($body['data']['files'])->toBe([]);
+        ->and($body['data']['locale'])->toBe($kal->locale->value())
+        ->and($body['data']['file'])->toBeNull();
 });
 
 it('answers 404 when the authenticated user is not the organizer', function (): void {

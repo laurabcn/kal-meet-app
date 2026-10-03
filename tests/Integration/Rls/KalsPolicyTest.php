@@ -7,7 +7,7 @@ use Doctrine\DBAL\Exception\DriverException;
 use Tests\Integration\Kal\Infrastructure\Persistence\SupabaseConnection;
 use Tests\Integration\Rls\RlsFixture;
 
-// Polítiques de `kals` i les seves filles directes (`kal_locales`, `kal_files`).
+// Polítiques de `kals` i la seva filla directa `kal_files`.
 // Tot corre com a `authenticated`: `postgres` és superusuari i salta la RLS, o
 // sigui que sense canviar de rol una política que no filtrés res passaria igual.
 
@@ -150,20 +150,18 @@ it('refuses a truncate of the aggregate from an anonymous caller', function (): 
         ->toThrow(DriverException::class, 'permission denied for table kals');
 });
 
-it('lets a member read the kal locales and files', function (): void {
+it('lets a member read the kal file', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->memberUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    expect($this->connection->fetchOne('SELECT count(*) FROM kal_locales'))->toBe(2)
-        ->and($this->connection->fetchOne('SELECT count(*) FROM kal_files'))->toBe(1);
+    expect($this->connection->fetchOne('SELECT count(*) FROM kal_files'))->toBe(1);
 });
 
-it('hides the kal locales and files from a stranger', function (): void {
+it('hides the kal file from a stranger', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->strangerUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    expect($this->connection->fetchOne('SELECT count(*) FROM kal_locales'))->toBe(0)
-        ->and($this->connection->fetchOne('SELECT count(*) FROM kal_files'))->toBe(0);
+    expect($this->connection->fetchOne('SELECT count(*) FROM kal_files'))->toBe(0);
 });
 
 it('does not let a member add a file to the kal', function (): void {
@@ -177,12 +175,11 @@ it('does not let a member add a file to the kal', function (): void {
         'file_path' => 'kal-patterns/sneaky.pdf',
         'file_size' => 1024,
         'file_extension' => 'pdf',
-        'locale' => 'ca',
     ]))->toThrow(DriverException::class, 'permission denied for table kal_files');
 });
 
 // Les filles directes tenien `*_insert_organizer` i grant d'INSERT: eren la via
-// per adjuntar el PDF del patró o habilitar un idioma des del client.
+// per adjuntar el PDF del patró des del client.
 it('refuses a file added from the client, even by the organizer', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
     SupabaseConnection::asAuthenticatedRole();
@@ -194,16 +191,5 @@ it('refuses a file added from the client, even by the organizer', function (): v
         'file_path' => 'kal-patterns/pattern.pdf',
         'file_size' => 1024,
         'file_extension' => 'pdf',
-        'locale' => 'ca',
     ]))->toThrow(DriverException::class, 'permission denied for table kal_files');
-});
-
-it('refuses a locale added from the client, even by the organizer', function (): void {
-    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
-    SupabaseConnection::asAuthenticatedRole();
-
-    expect(fn () => $this->connection->insert('kal_locales', [
-        'kal_id' => $this->fixture->kalId,
-        'locale' => 'en',
-    ]))->toThrow(DriverException::class, 'permission denied for table kal_locales');
 });

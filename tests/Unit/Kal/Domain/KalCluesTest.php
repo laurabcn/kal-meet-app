@@ -11,8 +11,6 @@ use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
-use Tests\Unit\Kal\Domain\Mother\LocalesMother;
-use Tests\Unit\Shared\Domain\ValueObject\Mother\LocaleMother;
 
 it('updates the scalar fields of a clue and keeps its identity, file and meeting', function (): void {
     $clue = ClueMother::create(name: 'Abans');
@@ -24,7 +22,6 @@ it('updates the scalar fields of a clue and keeps its identity, file and meeting
         NonEmptyStringValue::create('Nova descripció'),
         $clue->startsOn,
         $clue->endsOn,
-        $clue->locale,
     );
 
     expect($updated->id->equals($clue->id))->toBeTrue()
@@ -45,7 +42,6 @@ it('bumps updatedAt when a clue changes', function (): void {
         null,
         $clue->startsOn,
         $clue->endsOn,
-        $clue->locale,
     );
 
     expect($updated->updatedAt->value())->toBeGreaterThanOrEqual($clue->updatedAt->value());
@@ -60,7 +56,6 @@ it('refuses to update a clue that is not in the kal', function (): void {
         null,
         DateTime::create('2026-08-01 00:00:00'),
         DateTime::create('2026-08-08 00:00:00'),
-        LocaleMother::catalan(),
     ))->toThrow(ClueNotFoundException::class, 'Clue not found.');
 });
 
@@ -77,7 +72,6 @@ it('refuses an update that pushes the clue outside the kal range', function (): 
         null,
         $clue->startsOn,
         DateTime::create('2026-09-30 00:00:00'),
-        $clue->locale,
     ))->toThrow(KalException::class, 'A clue date range falls outside the kal date range.');
 });
 
@@ -95,22 +89,7 @@ it('refuses an update that leaves the meeting outside the clue range', function 
         null,
         DateTime::create('2026-08-10 00:00:00'),
         $clue->endsOn,
-        $clue->locale,
     ))->toThrow(KalException::class, 'A meeting is scheduled outside its clue date range.');
-});
-
-it('refuses an update to a locale the kal has not enabled', function (): void {
-    $clue = ClueMother::create();
-    $kal = KalMother::create(clues: CluesMother::of($clue), locales: LocalesMother::catalanAndSpanish());
-
-    expect(fn () => $kal->updateClue(
-        $clue->id,
-        $clue->name,
-        null,
-        $clue->startsOn,
-        $clue->endsOn,
-        LocaleMother::english(),
-    ))->toThrow(KalException::class, 'A clue locale is not enabled for this kal.');
 });
 
 it('removes a clue and hands it back so its meeting can fall with it', function (): void {

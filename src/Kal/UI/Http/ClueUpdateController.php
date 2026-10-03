@@ -22,7 +22,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 final readonly class ClueUpdateController
 {
     /** El PDF i la reunió tenen (o tindran) el seu propi camí; aquí no entren. */
-    private const array REJECTED_FIELDS = ['id', 'kalId', 'file', 'meeting', 'updatedAt'];
+    private const array REJECTED_FIELDS = ['id', 'kalId', 'file', 'meeting', 'locale', 'updatedAt'];
 
     public function __construct(
         private CommandBusInterface $commandBus,
@@ -70,7 +70,7 @@ final readonly class ClueUpdateController
         }
 
         $changes = [];
-        foreach (['name', 'startsOn', 'endsOn', 'locale'] as $key) {
+        foreach (['name', 'startsOn', 'endsOn'] as $key) {
             if (\array_key_exists($key, $payload)) {
                 $changes[$key] = self::requiredStringValue($payload[$key]);
             }

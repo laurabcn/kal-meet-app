@@ -1,6 +1,9 @@
 # Spec: el xat de l'aula
 
 > Status: **Draft**
+> Revisada 2026-09-29: un KAL té un sol idioma, així que l'aula torna a ser
+> **una per KAL** (es desfà la decisió del 2026-08-24 d'una aula per idioma).
+>
 > Escrit 2026-08-16. Primera de dues specs de l'aula: aquesta cobreix el **xat**
 > (esquema + RLS + Realtime), que va directe a Supabase. La lectura de l'aula
 > (llistat d'aules, KAL amb galeria i pistes alliberades) són endpoints de
@@ -48,47 +51,23 @@ Dues taules: `debate_rooms`, que ja existeix i canvia, i `debate_messages`, que
 és nova. La segona és la que faltava des del primer dia — el comentari de
 `debate_rooms` la deixava anotada com a «separate migration».
 
-### Una aula per idioma habilitat
+### Una aula per KAL
 
-Decidit el 2026-08-24, i és un canvi respecte del que diu CLAUDE.md avui («MVP:
-1 sola aula; Fase 2: múltiples per idioma»): l'aula és **per idioma**, no per
-KAL. Un KAL amb `ca` i `es` habilitats té dues aules des del minut u.
+L'aula és **per KAL**, com ja diu el codi: `debate_rooms_kal_id_unique` i
+`Kal::$debateRoom` com a `DebateRoom` única. El 2026-08-24 es va decidir una
+aula per idioma habilitat; el 2026-09-29 un KAL va passar a tenir **un sol
+idioma** (`kals.locale`), i amb un idioma per KAL una aula per idioma i una aula
+per KAL són la mateixa cosa. `debate_rooms` no guanya cap columna `locale`: la
+de `kals` ja la diu.
+
+L'únic canvi a `debate_rooms` és l'índex que necessita la FK composta de
+`debate_messages` (veure sota):
 
 ```sql
--- 1. La columna, directament not null: la taula es dona per buida (veure sota).
-alter table debate_rooms add column locale text not null;
-
--- 2. El locale de l'aula ha de ser un dels habilitats al KAL. Aquí sí que ho pot
---    fer la BD, perquè kal_locales té PK (kal_id, locale).
-alter table debate_rooms
-    add constraint debate_rooms_kal_locale_fk
-    foreign key (kal_id, locale) references kal_locales (kal_id, locale)
-    on delete restrict;
-
--- 3. Una aula per idioma, ja no una per KAL.
-drop index debate_rooms_kal_id_unique;
-create unique index debate_rooms_kal_locale_unique
-    on debate_rooms (kal_id, locale) where deleted_at is null;
-
--- 4. Necessari per la FK composta de debate_messages (veure sota).
 create unique index debate_rooms_id_kal_unique on debate_rooms (id, kal_id);
 ```
 
-**La migració dona `debate_rooms` per buida.** No hi ha backfill ni `set not null`
-en dos passos perquè avui no hi ha dades reals enlloc: ni desplegament ni entorn
-remot. És un supòsit que envelleix malament — si un entorn local té files de
-proves, la resposta és `supabase db reset`, no escriure un backfill. Qui faci el
-primer desplegament ha de saber que això es va decidir a consciència i que a
-partir d'aquell moment ja no serà cert.
-
-**Què cobreix aquesta FK.** La direcció «no pots crear una aula en un idioma que
-el KAL no té habilitat», que és real i barata. L'`on delete restrict` hi és per
-si algun dia algú fa un hard delete a mà: que peti, en comptes d'endur-se
-conversa per davant.
-
-**Editar els idiomes d'un KAL queda fora d'aquesta spec** — què passa quan
-s'afegeix un idioma, i sobretot què passa amb una aula que ja té conversa quan se
-li treu l'idioma, es tracta a [`kal-locales.md`](kal-locales.md).
+És additiu i no toca dades: no cal suposar la taula buida ni fer backfill.
 
 ### `debate_messages`
 
@@ -126,9 +105,10 @@ alter publication supabase_realtime add table debate_messages;
 
 Les quatre decisions d'aquesta taula, amb el perquè:
 
-- **`room_id`, no `kal_id` sol.** Amb aula per idioma, `kal_id` sol seria ambigu:
-  no diria a quina aula va el missatge. Era la decisió que sí que ens podia
-  tancar la porta a canals i fils, i queda resolta.
+- **`room_id`, no `kal_id` sol.** Amb una aula per KAL, avui `kal_id` sol
+  bastaria. `room_id` hi és pels Goals: el dia que un KAL tingui més d'una aula
+  (canals), `kal_id` sol seria ambigu i caldria migrar totes les files. Era la
+  decisió que sí que ens podia tancar la porta a canals i fils, i queda resolta.
 - **`kal_id` duplicat, amb FK composta.** Sense ell, cada policy hauria de fer
   `is_kal_member((select kal_id from debate_rooms where id = room_id))` — un
   subselect per fila, i Realtime avalua RLS per cada missatge que entrega. Amb la
@@ -147,19 +127,10 @@ Les quatre decisions d'aquesta taula, amb el perquè:
 
 ### Conseqüències sobre codi que ja existeix
 
-Passar d'una aula per KAL a una per idioma no és només SQL:
-
-- `Kal::$debateRoom` passa de ser una `DebateRoom` a una col·lecció, i
-  `Kal::create()` n'ha de crear una per cada locale de `Locales`.
-- `DebateRoom` guanya el seu `Locale`, i el docblock de la classe deixa de dir
-  «una sola per KAL a l'MVP».
-- `KalHydrator` (avui llença `missingDebateRoom()` amb zero files) i
-  `KalRepository::create()` (avui un sol `insert`) han de treballar amb la
-  llista.
-- `KalRepository::CHILD_TABLES` — les aules ja hi són; hi entra `debate_messages`
-  (veure «Esborrar i editar el propi missatge»).
-- CLAUDE.md: «MVP: 1 sola aula» deixa de ser cert, i «múltiples aules de xat per
-  idioma» surt de la llista de Fora de l'MVP.
+Amb una aula per KAL, `Kal`, `DebateRoom`, `KalHydrator` i
+`KalRepository::create()` no canvien. L'únic toc és
+`KalRepository::CHILD_TABLES`: les aules ja hi són; hi entra `debate_messages`
+(veure «Esborrar i editar el propi missatge»).
 
 ### Esborrar i editar el propi missatge
 
@@ -183,8 +154,9 @@ Decidit el 2026-08-24, les tres coses alhora:
 
 Aquí és on viu de veritat la seguretat del xat: el frontend insereix i llegeix
 `debate_messages` directament amb `supabase-js`, i el backend només hi entra per
-la cascada del delete — amb service_role, o sigui **saltant-se RLS**. No hi ha
-cap capa d'aplicació que tapi un forat de policy.
+la cascada del delete — per Doctrine DBAL, connexió directa com a rol
+`postgres` (`bypassrls`), o sigui **saltant-se RLS**. No hi ha cap capa
+d'aplicació que tapi un forat de policy.
 
 ### Helpers: cap de nou
 
@@ -229,10 +201,6 @@ create policy debate_messages_insert_member on debate_messages
         and is_own_profile(author_id)
         and not hidden
         and deleted_at is null
-        and exists (
-            select 1 from debate_rooms r
-             where r.id = room_id and r.deleted_at is null
-        )
     );
 
 -- L'autora edita o esborra el seu.
@@ -254,14 +222,13 @@ Tres coses que no són òbvies:
 - **La FK composta també fa feina de seguretat**, no només d'integritat: garanteix
   que el `kal_id` que la policy comprova és el de l'aula on va el missatge. Sense
   ella, `is_kal_member(kal_id)` seria comprovar un camp que qui escriu tria.
-- **L'`exists` sobre `debate_rooms`** hi és perquè la FK **no** mira `deleted_at`.
-  Sense ell, una membre podria seguir escrivint a l'aula d'un idioma que ja s'ha
-  tret del KAL — mecanisme que es defineix a [`kal-locales.md`](kal-locales.md),
-  encara per implementar. **És l'únic cas que cobreix**, i val la pena dir-ho
-  perquè el candidat evident no ho és: amb el KAL soft-deleted no hi afegeix
-  res, perquè `is_kal_member(kal_id)` ja exigeix `kals.deleted_at is null` a les
-  seves dues branques (`20260804112500_participations.sql`) i la policy talla a
-  la primera condició. Es paga un cop per fila inserida, no per fila llegida.
+- **No hi ha `exists` sobre `debate_rooms`**, tot i que la FK **no** mira
+  `deleted_at`. Amb una aula per KAL, una aula només s'esborra amb la cascada del
+  KAL, i aquest cas ja el talla `is_kal_member(kal_id)`, que exigeix
+  `kals.deleted_at is null` a les seves dues branques
+  (`20260804112500_participations.sql`). La versió amb aula per idioma el
+  portava per a l'aula d'un idioma tret del KAL, cas que ja no existeix. Quan
+  arribin canals que es puguin esborrar d'un en un, torna a caldre.
 
 ### El que les policies no poden dir: qui toca quina columna
 
@@ -279,8 +246,8 @@ security definer
 set search_path = ''
 as $$
 begin
-    -- El backend (service_role, cascada del delete del KAL) no té auth.uid().
-    -- Nota: service_role salta RLS, però NO salta triggers.
+    -- El backend (connexió directa com a `postgres`, cascada del delete del
+    -- KAL) no té auth.uid(). Nota: `bypassrls` salta RLS, però NO salta triggers.
     if (select auth.uid()) is null then
         return new;
     end if;
@@ -328,9 +295,8 @@ simplement no escrivint la columna.
 ### `debate_rooms`: sense canvis
 
 `debate_rooms_select_member` ja diu `deleted_at is null and is_kal_member(kal_id)`
-i segueix sent correcta amb una aula per idioma — una membre veu totes les aules
-del seu KAL i tria en quina escriu. Els idiomes que una participant «parla» no
-són dada del sistema, i filtrar-li aules per idioma seria decidir per ella.
+i segueix sent correcta: una membre veu l'aula del seu KAL. També ho serà amb
+canals, sense tocar-la.
 
 ### Conseqüència que arrossega Realtime
 

@@ -27,7 +27,6 @@ use Psr\Log\LoggerInterface;
 final readonly class KalRepository implements KalRepositoryInterface
 {
     private const string TABLE_NAME = 'kals';
-    private const string TABLE_LOCALES = 'kal_locales';
     private const string TABLE_FILES = 'kal_files';
     private const string TABLE_CLUES = 'clues';
     private const string TABLE_MEETINGS = 'meetings';
@@ -35,7 +34,6 @@ final readonly class KalRepository implements KalRepositoryInterface
 
     /** Filles que el soft delete del KAL marca amb ell. */
     private const array CHILD_TABLES = [
-        self::TABLE_LOCALES,
         self::TABLE_FILES,
         self::TABLE_CLUES,
         self::TABLE_MEETINGS,
@@ -64,12 +62,8 @@ final readonly class KalRepository implements KalRepositoryInterface
         try {
             $connection->insert(self::TABLE_NAME, $data['kal']);
 
-            foreach ($data['locales'] as $locale) {
-                $connection->insert(self::TABLE_LOCALES, $locale);
-            }
-
-            foreach ($data['files'] as $file) {
-                $connection->insert(self::TABLE_FILES, $file);
+            if (null !== $data['file']) {
+                $connection->insert(self::TABLE_FILES, $data['file']);
             }
 
             foreach ($data['clues'] as $clue) {
@@ -266,7 +260,6 @@ final readonly class KalRepository implements KalRepositoryInterface
                      description = :description,
                      starts_on = :starts_on,
                      ends_on = :ends_on,
-                     locale = :locale,
                      updated_at = :updated_at
                  WHERE id = :id
                    AND kal_id = :kal_id
@@ -276,7 +269,6 @@ final readonly class KalRepository implements KalRepositoryInterface
                     'description' => $row['description'],
                     'starts_on' => $row['starts_on'],
                     'ends_on' => $row['ends_on'],
-                    'locale' => $row['locale'],
                     'updated_at' => $row['updated_at'],
                     'id' => $row['id'],
                     'kal_id' => $row['kal_id'],
@@ -449,25 +441,6 @@ final readonly class KalRepository implements KalRepositoryInterface
         if (!$data) {
             throw KalNotFoundException::create();
         }
-
-        /** @var list<string> $locales */
-        $locales = $connection
-            ->createQueryBuilder()
-            ->select('locale')
-            ->from(self::TABLE_LOCALES)
-            ->where('kal_id = :kalId')
-            ->andWhere('deleted_at IS NULL')
-            ->setParameter('kalId', $kalId)
-            ->executeQuery()
-            ->fetchFirstColumn();
-
-        // Sense locales no es pot reconstitir l'agregat (invariant ≥1).
-        // Els KALs creats abans de persistir kal_locales queden il·legibles.
-        if ([] === $locales) {
-            throw KalNotFoundException::create();
-        }
-
-        $data['locales'] = $locales;
 
         $data['files'] = $connection
             ->createQueryBuilder()

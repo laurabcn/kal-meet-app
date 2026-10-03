@@ -138,6 +138,7 @@ it('maps every corrupted-state error to 500, whatever its code', function (
     'debate room gone' => [fn () => KalStateException::missingDebateRoom(), 'kal_debate_room_missing'],
     'clue with no meeting' => [fn () => KalStateException::missingClueMeeting(), 'kal_clue_meeting_missing'],
     'not a kal' => [fn () => KalStateException::invalidKal(), 'kal_invalid'],
+    'more than one active file' => [fn () => KalStateException::multipleKalFiles(), 'kal_multiple_files'],
     'no entropy' => [fn () => KalStateException::inviteTokenGenerationFailed(), 'kal_invite_token_generation_failed'],
     'invalid stored profile id' => [fn () => UserException::invalidStoredProfileId(), 'user_invalid_stored_profile_id'],
 ]);
@@ -145,9 +146,9 @@ it('maps every corrupted-state error to 500, whatever its code', function (
 // La contrapartida: el que SÍ que pot arreglar qui fa la petició segueix sent
 // un 400, i no ha d'omplir el log ni Slack.
 it('keeps client-fixable domain errors on 400', function (): void {
-    $mapped = $this->mapper->map(KalException::noLocalesEnabled());
+    $mapped = $this->mapper->map(KalException::invalidDateRange());
 
     expect($mapped)->not->toBeNull()
         ->and($mapped->statusCode)->toBe(Response::HTTP_BAD_REQUEST)
-        ->and($mapped->errorCode)->toBe('kal_no_locales_enabled');
+        ->and($mapped->errorCode)->toBe('kal_invalid_date_range');
 });

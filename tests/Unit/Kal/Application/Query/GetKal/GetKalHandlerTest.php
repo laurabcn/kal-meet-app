@@ -9,12 +9,11 @@ use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
-use Tests\Unit\Kal\Domain\Mother\FilesMother;
+use Tests\Unit\Kal\Domain\Mother\FileMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
 use Tests\Unit\Kal\Infrastructure\Persistence\InMemoryKalRepository;
-use Tests\Unit\Shared\Domain\ValueObject\Mother\LocaleMother;
 
 beforeEach(function (): void {
     $this->repository = new InMemoryKalRepository();
@@ -36,13 +35,14 @@ it('returns the kal snapshot including the invite token when the caller organize
         ->and($result)->not->toHaveKey('organizerId')
         ->and($result['meetings'])->toBeEmpty()
         ->and($result['clues'])->toBeEmpty()
-        ->and($result['files'])->toBeEmpty();
+        ->and($result['locale'])->toBe($kal->locale->value())
+        ->and($result['file'])->toBeNull();
 });
 
-it('serializes nested meetings, clues and files mirroring the create graph', function (): void {
+it('serializes nested meetings, clues and the file mirroring the create graph', function (): void {
     $organizerId = UlidValue::generate();
     $kal = KalMother::create(
-        files: FilesMother::withLocale(LocaleMother::catalan()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         organizerId: $organizerId,
         meetings: MeetingsMother::of(MeetingMother::create()),
@@ -53,7 +53,8 @@ it('serializes nested meetings, clues and files mirroring the create graph', fun
 
     $meeting = $kal->meetings->all()[0];
     $clue = $kal->clues->all()[0];
-    $file = $kal->files->all()[0];
+    $file = $kal->file;
+    assert(null !== $file);
 
     expect($result['meetings'])->toHaveCount(1)
         ->and($result['meetings'][0])->toBe([
@@ -68,13 +69,11 @@ it('serializes nested meetings, clues and files mirroring the create graph', fun
         ->and($result['clues'][0]['name'])->toBe($clue->name->value())
         ->and($result['clues'][0]['file']['fileName'])->toBe($clue->file->fileName->value())
         ->and($result['clues'][0]['meeting']['id'])->toBe($clue->meeting->id->value())
-        ->and($result['files'])->toHaveCount(1)
-        ->and($result['files'][0])->toBe([
+        ->and($result['file'])->toBe([
             'fileName' => $file->fileName->value(),
             'filePath' => $file->filePath->value(),
             'fileSize' => $file->fileSize->value(),
             'fileExtension' => $file->fileExtension->value(),
-            'locale' => $file->locale->value(),
             'uploadId' => $file->uploadId->value(),
             'uploadedAt' => $file->uploadedAt->value(),
         ]);

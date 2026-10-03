@@ -32,6 +32,12 @@ final class KalStateException extends CorruptedStateException
         return new self('kal_clue_meeting_missing', 'A clue is missing its required meeting.');
     }
 
+    /** Un KAL té 0..1 fitxer viu (índex `kal_files_kal_id_active_unique`). */
+    public static function multipleKalFiles(): self
+    {
+        return new self('kal_multiple_files', 'The kal has more than one active file.');
+    }
+
     /** L'hidratador ha rebut una cosa que no és un Kal: error de programació, no d'entrada. */
     public static function invalidKal(): self
     {

@@ -19,7 +19,6 @@ use Tests\Integration\Kal\Infrastructure\Persistence\SupabaseConnection;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
 use Tests\Unit\Kal\Domain\Mother\FileMother;
-use Tests\Unit\Kal\Domain\Mother\FilesMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
@@ -49,7 +48,6 @@ final readonly class RlsFixture
      */
     public const array PUBLIC_TABLES = [
         'kals',
-        'kal_locales',
         'kal_files',
         'clues',
         'meetings',
@@ -106,7 +104,7 @@ final readonly class RlsFixture
         $kalMeeting = MeetingMother::create(scheduledAt: DateTime::create('2026-08-15 18:00:00'));
 
         $kal = KalMother::create(
-            files: FilesMother::of(FileMother::create()),
+            file: FileMother::create(),
             clues: CluesMother::of($released, $unreleased),
             startsOn: DateTime::create('2026-08-01 00:00:00'),
             organizerId: $organizerId,

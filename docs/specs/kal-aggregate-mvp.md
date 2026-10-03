@@ -9,6 +9,12 @@
 > («CreateKal sense `debate_room` + backfill després»), l’aula és part de
 > l’agregat i s’escriu a la mateixa transacció. No hi ha migració de backfill
 > (no hi havia KALs en prod). Els missatges del xat segueixen fora.
+>
+> **Update 2026-09-29:** `Locales`, `Files` i els invariants de «locale
+> habilitat» que aquest spec descriu ja no existeixen. Un KAL té un sol idioma
+> (`kals.locale`, fix des de la creació) i com a molt un PDF de patró
+> (`?File`); pistes i fitxers hereten l'idioma. Veure el `CLAUDE.md` § «Model
+> de domini».
 
 ## Problem
 
