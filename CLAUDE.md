@@ -167,7 +167,7 @@ applied).
   diferent). La *service_role key* és una credencial de l'API REST de Supabase
   (PostgREST, supabase-js) i aquest backend no la fa servir enlloc; de fet
   `bypassrls` no salta els grants, i el rol `service_role` no té ni `SELECT`
-  sobre aquestes vuit taules, o sigui que encaminar-hi escriptures donaria
+  sobre aquestes set taules, o sigui que encaminar-hi escriptures donaria
   `permission denied for table …`. **Qüestió oberta** (la decideix l'arquitecta,
   aquí només es descriu l'estat real): si el backend s'ha de connectar amb un rol
   de privilegis mínims en comptes del superusuari
@@ -274,19 +274,19 @@ pinnedMessage · inviteToken · **locale** · **file?**
   taules i columnes) ja ho preveu, l'extracció serà neta
 - **Reunions visuals (`Meeting`)** — entitat {id ULID, scheduledAt, url, title,
   timezone, clueId?}: trobades en directe (Zoom/Meet, enllaç extern). `clueId`
-  null = reunió del KAL; informat = reunió d'una pista concreta. Poden ser
-  vàries (típicament per idioma). `timezone` (per defecte 'Europe/Madrid')
+  null = reunió del KAL; informat = reunió d'una pista concreta. Les de KAL
+  poden ser vàries. `timezone` (per defecte 'Europe/Madrid')
   perquè scheduledAt és hora local de l'organitzadora. **MVP: tots dos nivells**
   — de KAL i de pista (cada `Clue` en porta una d'obligatòria). La reunió d'una
   pista no alliberada NO la veuen les participants: ho fa complir la RLS
-  (`meetings_select_member` amb `is_clue_released(clue_id)`), no només la UI.
-  Fase 2: múltiples reunions per idioma dins del mateix àmbit
+  (`meetings_select_member` amb `is_clue_released(clue_id)`), no només la UI
 - **Aules de xat (`debate_rooms`)** — xat escrit asíncron, SEMPRE a nivell de
-  KAL, mai per pista. Poden ser vàries (típicament per idioma). Els missatges
+  KAL, mai per pista. Una per KAL (`debate_rooms_kal_id_unique`). Els missatges
   (`debate_messages`) NO tenen clueId. L'organitzadora hi participa quan pot;
   les participants es responen entre elles. Persistència: relació
   `kal_debate_rooms`. Flag `hidden` als missatges per moderació. MVP (candidat,
-  veure Funcionalitats): 1 sola aula. Fase 2: múltiples per idioma
+  veure Funcionalitats). Res «per idioma»: un KAL té un sol idioma (veure
+  l'agregat Kal), i un KAL en dos idiomes són dos KALs
 - **VideoLink** — value object {url, title, position}, opcionalment lligat a
   una clue (vídeos gravats/tutorials incrustats, YouTube/Vimeo). `url` sempre
   `https://` (mai allotjar vídeo propi)
@@ -359,7 +359,7 @@ El roadmap complet per fases (MVP · Fase 2 · Fase Patterns · Fase IA) viu a l
 4. Recordatoris per email (inici de ronda; trobada 30 min abans)
 5. Reunions visuals = enllaç extern (Zoom/Meet) + horari, a nivell de KAL (poden
    ser vàries) i lligades a pista (una per pista, obligatòria). NO vídeo
-   integrat; el multi-idioma dins del mateix àmbit és Fase 2
+   integrat
 6. Moderació: organitzadora amaga fotos i expulsa participants
 7. Mètriques de validació: % participants amb ≥2 fotos, retorn setmanal, 2n KAL creat
 
@@ -371,8 +371,7 @@ KAL no viu; es valida a les entrevistes abans de construir-lo.
 **Fora de l'MVP (no implementar encara que sembli fàcil):** gamificació,
 comentaris/reaccions, integracions Instagram/Discord, push notifications,
 pagaments (Stripe), vídeo integrat (Daily.co/Jitsi), venda de patrons, Pattern
-com a context separat (Fase Patterns), múltiples aules de xat per idioma,
-múltiples reunions per idioma dins d'un mateix àmbit, assistent de creació amb
+com a context separat (Fase Patterns), assistent de creació amb
 IA (Fase IA), recomanador.
 
 ## Convencions

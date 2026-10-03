@@ -260,7 +260,7 @@ com la resta.
 
 - **Substituir el PDF d'una pista.** Demana pensar què passa amb el fitxer antic
   a Storage (esborrar-lo? deixar-lo orfe?) i això és una decisió pròpia.
-- **Editar la reunió d'una pista** i afegir-ne de noves per idioma (Fase 2).
+- **Editar la reunió d'una pista.**
 - **`GET` d'una pista solta.** Ja surten al `GET /kal/{id}`.
 - **Reordenar pistes** amb una columna `position`.
 - **Restaurar** una pista esborrada. Lligat a la qüestió oberta del restore de
