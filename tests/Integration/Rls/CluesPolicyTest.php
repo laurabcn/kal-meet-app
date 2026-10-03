@@ -122,36 +122,52 @@ it('does not let a member add a clue', function (): void {
         'file_extension' => 'pdf',
         'file_locale' => 'ca',
         'file_upload_id' => UlidValue::generate()->value(),
-    ]))->toThrow(DriverException::class, 'row-level security policy');
+    ]))->toThrow(DriverException::class, 'permission denied for table clues');
+});
+
+// Una pista escrita des del client se saltaria la invariant que l'arrel fa
+// complir en PHP: que les dates caiguin dins del rang del Kal i que el `locale`
+// sigui un dels habilitats. La BD no sap comprovar-ho, per això no hi escriu
+// ningú més que el backend.
+it('refuses a clue added from the client, even by the organizer', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->insert('clues', [
+        'id' => UlidValue::generate()->value(),
+        'kal_id' => $this->fixture->kalId,
+        'name' => 'New round',
+        'starts_on' => '2026-08-02 00:00:00',
+        'ends_on' => '2026-08-09 00:00:00',
+        'locale' => 'ca',
+        'file_name' => 'round.pdf',
+        'file_path' => 'kal-patterns/round.pdf',
+        'file_size' => 1024,
+        'file_extension' => 'pdf',
+        'file_locale' => 'ca',
+        'file_upload_id' => UlidValue::generate()->value(),
+    ]))->toThrow(DriverException::class, 'permission denied for table clues');
 });
 
 // Sense això una participant podria avançar-se una pista canviant-ne la data.
+// Ja no cal comprovar després que segueix sense alliberar: l'UPDATE llença
+// (falta el grant) i la fila no s'arriba a tocar.
 it('does not let a member release a clue early', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->memberUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $affected = $this->connection->executeStatement(
+    expect(fn () => $this->connection->executeStatement(
         'UPDATE clues SET starts_on = now() WHERE id = :id',
         ['id' => $this->fixture->unreleasedClueId],
-    );
-
-    expect($affected)->toBe(0);
-
-    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
-    expect((bool) $this->connection->fetchOne(
-        'SELECT is_clue_released(:id)',
-        ['id' => $this->fixture->unreleasedClueId],
-    ))->toBeFalse();
+    ))->toThrow(DriverException::class, 'permission denied for table clues');
 });
 
-it('lets the organizer reschedule a clue', function (): void {
+it('refuses a clue rescheduled from the client, even by the organizer', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $affected = $this->connection->executeStatement(
+    expect(fn () => $this->connection->executeStatement(
         'UPDATE clues SET name = :name WHERE id = :id',
         ['name' => 'Renamed round', 'id' => $this->fixture->unreleasedClueId],
-    );
-
-    expect($affected)->toBe(1);
+    ))->toThrow(DriverException::class, 'permission denied for table clues');
 });

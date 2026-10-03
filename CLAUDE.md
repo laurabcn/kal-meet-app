@@ -122,11 +122,54 @@ applied).
   Cap text hardcoded a la UI
 
 ## Arquitectura de permisos (important!)
-- El frontend parla **directament** amb Supabase per auth (supabase-js, magic
-  links) i pujada de fotos; la seguretat la fan les **polítiques RLS** ja creades
-- Symfony (amb la service_role key, salta RLS) només per la lògica que no pot
-  viure al client: validar tokens d'invitació, emails/recordatoris, crons,
-  URLs signades de fotos
+- **Tota escriptura de gestió passa pel backend** (`kals`, `kal_locales`,
+  `kal_files`, `clues`, `meetings`, `debate_rooms`): l'organitzadora no crea ni
+  modifica mai res directament contra Supabase. El client no hi té ni grants ni
+  policies d'escriptura — aquestes taules es queden amb RLS activa i només
+  policies de `select` (migració
+  `20260829210457_lock_kal_writes_to_backend.sql`: revoca els grants
+  d'escriptura de `authenticated` i dropa les vuit policies
+  `*_insert_organizer`/`*_update_organizer`). `participations` ja era
+  només-backend des del primer dia (cal validar el token d'invitació); ara és
+  coherent amb la resta, no una excepció
+- **De passada es va tancar un forat que no havia decidit ningú, i va caldre
+  tancar-lo dos cops:** aquells grants incloïen `TRUNCATE` —heretat d'un `ALTER
+  DEFAULT PRIVILEGES` de Supabase, que el dona a **`anon` i `authenticated`**
+  sobre tota taula nova— i `TRUNCATE` salta la RLS sencera, o sigui que es podien
+  buidar les taules de l'agregat.
+  `20260829210457_lock_kal_writes_to_backend.sql` només va revocar-lo de
+  `authenticated`: `anon` —la visitant **sense loguejar**— el va conservar sobre
+  les vuit taules fins l'endemà. Ho tanca
+  `20260830140044_revoke_inherited_truncate_grants.sql`, que revoca `insert,
+  update, delete, truncate` d'`anon` i `authenticated` sobre `participations` i
+  `profiles` (que van quedar fora de la llista del dia abans) i d'`anon` sobre
+  les sis taules de l'agregat. Estat verificat: cap privilegi d'escriptura per a
+  `anon` ni `authenticated` a cap de les vuit
+- **Per què una sola porta:** amb dues portes obertes a la mateixa dada, la
+  validació de domini (els invariants de l'agregat `Kal`: rangs de dates de les
+  pistes, idiomes habilitats, límit de pistes) només corre per una de les dues.
+  RLS sap dir *qui* pot escriure, no *què* és vàlid
+- **La lectura sí que va directa:** el frontend llegeix amb supabase-js i aquí la
+  seguretat la fan les **polítiques RLS** (`*_select_*`). També segueixen anant
+  directes a Supabase l'**auth** (magic links) i la **pujada de fotos**. Per a
+  l'escriptura de gestió, en canvi, RLS és la xarxa de sota — es manté activa a
+  totes les taules per si algun dia s'obre un grant per error — i la primera
+  barrera és el backend
+- Symfony porta tot el CRUD de gestió, i a més la lògica que no pot viure al
+  client: validar tokens d'invitació, emails/recordatoris, crons, URLs signades
+  de fotos. **No hi ha cap service_role key pel mig:** el backend parla amb
+  Postgres per Doctrine DBAL, connexió directa i com a rol **`postgres`**
+  —propietari de les taules i amb `bypassrls`; no és `rolsuper` a Supabase, tot i
+  que ho sembli— (`DATABASE_URL` a `.env`, `TEST_DATABASE_URL` a `.env.test`), i
+  per això no el limiten ni la RLS (pel `bypassrls`) ni els grants (per la
+  propietat: són dos mecanismes separats i cada un el salta per un motiu
+  diferent). La *service_role key* és una credencial de l'API REST de Supabase
+  (PostgREST, supabase-js) i aquest backend no la fa servir enlloc; de fet
+  `bypassrls` no salta els grants, i el rol `service_role` no té ni `SELECT`
+  sobre aquestes vuit taules, o sigui que encaminar-hi escriptures donaria
+  `permission denied for table …`. **Qüestió oberta** (la decideix l'arquitecta,
+  aquí només es descriu l'estat real): si el backend s'ha de connectar amb un rol
+  de privilegis mínims en comptes del superusuari
 - Verificació del JWT de Supabase al backend via JWKS (authenticator propi de
   Symfony Security o lcobucci/jwt + firebase/php-jwt — decidir a la primera
   implementació i documentar-ho aquí)
@@ -157,7 +200,7 @@ mateix endpoint, són dues superfícies separades.**
   risc real — filtrar l'`inviteToken` o una pista no alliberada — el conté
   millor un handler que no llegeix mai aquests camps que un `if` dins d'un de
   compartit
-- **Compte amb l'RLS:** aquests endpoints van amb la service_role key i
+- **Compte amb l'RLS:** aquests endpoints es connecten com a rol `postgres` i
   **salten RLS**, així que `is_clue_released` no els protegeix. El filtre de
   pistes no alliberades l'ha de fer el codi de l'aula, explícitament
 
@@ -252,7 +295,8 @@ pinnedMessage · inviteToken
   l'uuid de Supabase Auth — aquest queda a `profiles.external_id`, desacoblat
   (migració `20260716190425_users_external_id_ulid.sql`; `organizer_id`/
   `user_id` sempre usen l'id intern, mai `auth.uid()` directament)
-- Soft delete via `deleted_at`; les RLS ja exclouen esborrats. **En cascada des
+- Soft delete via `deleted_at`; les RLS ja exclouen esborrats de la lectura del
+  client, i el `SET deleted_at` només el fa el backend. **En cascada des
   del KAL**: veure «Soft delete: com s'esborra» més avall abans d'escriure cap
   delete nou
 - El rol es deriva del context, mai s'emmagatzema: `is_kal_organizer` (ets
@@ -279,9 +323,11 @@ qui faci el delete de pistes o de reunions no hagi de refer aquest debat:
   i les policies pengen de `is_kal_member`/`is_kal_organizer`, que ja donen fals
   amb el KAL esborrat. La cascada és per **coherència de la fila**, no per
   visibilitat — es va decidir sabent-ho
-- **Tres capes han de filtrar, no una.** Les policies RLS (client directe), el
-  repositori (el backend va amb service_role i **salta RLS**) i, quan calgui, el
-  domini. Oblidar la del mig és el forat fàcil
+- **Tres capes han de filtrar, no una.** Les policies RLS (la lectura directa del
+  client), el repositori (el backend es connecta com a `postgres` i **salta
+  RLS**) i, quan
+  calgui, el domini. Oblidar la del mig és el forat fàcil — i com que l'escriptura
+  només passa pel backend, el `deleted_at` d'un `UPDATE` no el vigila ningú més
 - **Cada `SELECT` de filla porta `deleted_at IS NULL`**, encara que avui sembli
   redundant perquè l'arrel ja hauria filtrat
 

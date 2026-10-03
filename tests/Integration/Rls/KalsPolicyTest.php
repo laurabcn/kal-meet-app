@@ -66,24 +66,56 @@ it('hides a soft-deleted kal even from its organizer', function (): void {
     expect(($this->visibleKals)())->toBeEmpty();
 });
 
-it('lets a client create a kal it will organize', function (): void {
+// El cas fort de la decisió del 2026-08-29: ni tan sols l'organitzadora pot
+// crear el seu propi KAL des del client. És qui abans SÍ que podia (hi havia
+// `kals_insert_organizer` i el grant), o sigui que és el test que se n'adona si
+// algú els torna a posar.
+it('refuses a kal created from the client, even by the organizer', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $id = UlidValue::generate()->value();
-    $this->connection->insert('kals', [
-        'id' => $id,
+    expect(fn () => $this->connection->insert('kals', [
+        'id' => UlidValue::generate()->value(),
         'organizer_id' => $this->fixture->organizerId,
         'name' => 'Mine',
         'starts_on' => '2026-09-01 00:00:00',
         'invite_token' => UlidValue::generate()->value(),
-    ]);
-
-    expect($this->connection->fetchOne('SELECT count(*) FROM kals WHERE id = :id', ['id' => $id]))->toBe(1);
+    ]))->toThrow(DriverException::class, 'permission denied for table kals');
 });
 
-// La política d'INSERT compara `organizer_id` amb qui fa la crida: sense això
-// qualsevol podria crear un KAL a nom d'una altra organitzadora.
+// Sense el grant d'UPDATE, Postgres talla ABANS d'avaluar la RLS: un UPDATE
+// denegat ja no torna 0 files, llença. Per això aquí s'espera una excepció i no
+// s'assereix el valor de la fila — l'error avorta la transacció del test i
+// qualsevol SELECT posterior petaria amb `current transaction is aborted`.
+it('refuses a kal renamed from the client, even by the organizer', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->executeStatement(
+        'UPDATE kals SET name = :name WHERE id = :id',
+        ['name' => 'Renamed', 'id' => $this->fixture->kalId],
+    ))->toThrow(DriverException::class, 'permission denied for table kals');
+});
+
+it('does not let a member rename the kal', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->memberUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->executeStatement(
+        'UPDATE kals SET name = :name WHERE id = :id',
+        ['name' => 'Hijacked', 'id' => $this->fixture->kalId],
+    ))->toThrow(DriverException::class, 'permission denied for table kals');
+});
+
+// Aquest test NO prova cap política: sobre `kals` ja no n'hi ha cap d'INSERT.
+// Prova que la porta segueix tancada pel grant, i és exactament per això que hi
+// és. Abans hi havia `kals_insert_organizer` amb un `with check` que comparava
+// `organizer_id` amb qui trucava; ara no hi ha ni grant ni policy, o sigui que
+// si algú tornés a concedir INSERT sobre `kals` NO quedaria cap `with check`
+// que impedís crear un KAL a nom d'una altra persona — es reobriria alhora el
+// forat del grant i el de la suplantació, i aquest test és l'únic lloc que ho
+// cantaria. Es va esborrar el 2026-08-29 per duplicat (raonament correcte amb
+// la informació d'aleshores) i es recupera com a guarda de regressió.
 it('refuses a kal created on behalf of someone else', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->strangerUuid);
     SupabaseConnection::asAuthenticatedRole();
@@ -94,36 +126,28 @@ it('refuses a kal created on behalf of someone else', function (): void {
         'name' => 'Not mine',
         'starts_on' => '2026-09-01 00:00:00',
         'invite_token' => UlidValue::generate()->value(),
-    ]))->toThrow(DriverException::class, 'row-level security policy');
+    ]))->toThrow(DriverException::class, 'permission denied for table kals');
 });
 
-it('lets the organizer rename their kal', function (): void {
-    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
-    SupabaseConnection::asAuthenticatedRole();
-
-    $this->connection->executeStatement(
-        'UPDATE kals SET name = :name WHERE id = :id',
-        ['name' => 'Renamed', 'id' => $this->fixture->kalId],
-    );
-
-    expect($this->connection->fetchOne('SELECT name FROM kals WHERE id = :id', ['id' => $this->fixture->kalId]))
-        ->toBe('Renamed');
-});
-
-// Un UPDATE que no passa el `using` no peta: simplement no afecta cap fila.
-// Per això s'assereix el valor, no l'absència d'excepció.
-it('does not let a member rename the kal', function (): void {
+// TRUNCATE saltava la RLS sencera i el grant venia per defecte, sense que
+// ningú el decidís: una participant qualsevol podia buidar tot l'agregat.
+it('refuses a truncate of the aggregate from the client', function (): void {
     SupabaseConnection::authenticateAs($this->fixture->memberUuid);
     SupabaseConnection::asAuthenticatedRole();
 
-    $affected = $this->connection->executeStatement(
-        'UPDATE kals SET name = :name WHERE id = :id',
-        ['name' => 'Hijacked', 'id' => $this->fixture->kalId],
-    );
+    expect(fn () => $this->connection->executeStatement('TRUNCATE TABLE kals CASCADE'))
+        ->toThrow(DriverException::class, 'permission denied for table kals');
+});
 
-    expect($affected)->toBe(0)
-        ->and($this->connection->fetchOne('SELECT name FROM kals WHERE id = :id', ['id' => $this->fixture->kalId]))
-        ->not->toBe('Hijacked');
+// El mateix però com a `anon`, que és un rol DIFERENT amb els seus propis
+// grants: la revocació del 2026-08-29 només nomenava `authenticated`, així que
+// una visitant sense loguejar va conservar el TRUNCATE sobre tot l'agregat un
+// dia més. Provar només `authenticated` és el que va deixar passar aquell cas.
+it('refuses a truncate of the aggregate from an anonymous caller', function (): void {
+    SupabaseConnection::asAnonRole();
+
+    expect(fn () => $this->connection->executeStatement('TRUNCATE TABLE kals CASCADE'))
+        ->toThrow(DriverException::class, 'permission denied for table kals');
 });
 
 it('lets a member read the kal locales and files', function (): void {
@@ -154,5 +178,32 @@ it('does not let a member add a file to the kal', function (): void {
         'file_size' => 1024,
         'file_extension' => 'pdf',
         'locale' => 'ca',
-    ]))->toThrow(DriverException::class, 'row-level security policy');
+    ]))->toThrow(DriverException::class, 'permission denied for table kal_files');
+});
+
+// Les filles directes tenien `*_insert_organizer` i grant d'INSERT: eren la via
+// per adjuntar el PDF del patró o habilitar un idioma des del client.
+it('refuses a file added from the client, even by the organizer', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->insert('kal_files', [
+        'upload_id' => UlidValue::generate()->value(),
+        'kal_id' => $this->fixture->kalId,
+        'file_name' => 'pattern.pdf',
+        'file_path' => 'kal-patterns/pattern.pdf',
+        'file_size' => 1024,
+        'file_extension' => 'pdf',
+        'locale' => 'ca',
+    ]))->toThrow(DriverException::class, 'permission denied for table kal_files');
+});
+
+it('refuses a locale added from the client, even by the organizer', function (): void {
+    SupabaseConnection::authenticateAs($this->fixture->organizerUuid);
+    SupabaseConnection::asAuthenticatedRole();
+
+    expect(fn () => $this->connection->insert('kal_locales', [
+        'kal_id' => $this->fixture->kalId,
+        'locale' => 'en',
+    ]))->toThrow(DriverException::class, 'permission denied for table kal_locales');
 });
