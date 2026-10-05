@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "KAL Meet App — Auth & Kal",
-    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}`, `PATCH /kal/{id}`, `PUT /kal/{id}/file` and `POST /kal/participation`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set; then **PATCH /kal/{id}** to smoke the update, and the **PUT /kal/{id}/file** requests in order (set → retry → replace → reused uploadId).\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` / `inviteToken` must **not** appear in create or PATCH bodies — organizer comes from the token; invite rotation is a later endpoint.\n\n## PATCH /kal/{id}\nPartial update of scalar fields only: `name`, `description`, `startsOn`, `endsOn`, `coverPath`. Omit = leave; `null` on nullable fields = clear. Success → `204` empty body.\n\n## Locale and file\nA KAL has **one** `locale` (string, e.g. `\"ca\"`), fixed at creation, and at most one pattern `file` (object, optional). Clues and files inherit the KAL locale and must not carry their own. `locales` / `files` (old contract) and `locale` / `file` on PATCH → `400 invalid_payload`.\n\n## PUT /kal/{id}/file\nSets or replaces the KAL's pattern PDF. The body is the file itself (`fileName`, `filePath`, `fileSize`, `fileExtension`, `uploadId`, `uploadedAt`), same shape as the `file` of `POST /kal`, without `locale`. The binary is uploaded straight to Storage by the client; this only records metadata and path. Success → `204` empty body, whether it sets, replaces, or the file is already the live one (same `uploadId` → no-op). A `uploadId` already used by another `kal_files` row → `400 invalid_payload`.",
+    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}`, `GET /kal`, `PATCH /kal/{id}`, `PUT /kal/{id}/file`, the clue CRUD (`/kal/{id}/clue`), `POST /kal/participation` and `DELETE /kal/{id}`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set; then **PATCH /kal/{id}** to smoke the update, and the **PUT /kal/{id}/file** requests in order (set → retry → replace → reused uploadId). The **Kal** folder is meant to run top to bottom: the clue requests reuse `clueId` from the clue create, and **DELETE /kal/{id} — delete** is last on purpose, because it removes the KAL everything else uses.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` / `inviteToken` must **not** appear in create or PATCH bodies — organizer comes from the token; invite rotation is a later endpoint.\n\n## PATCH /kal/{id}\nPartial update of scalar fields only: `name`, `description`, `startsOn`, `endsOn`, `coverPath`. Omit = leave; `null` on nullable fields = clear. Success → `204` empty body.\n\n## Locale and file\nA KAL has **one** `locale` (string, e.g. `\"ca\"`), fixed at creation, and at most one pattern `file` (object, optional). Clues and files inherit the KAL locale and must not carry their own. `locales` / `files` (old contract) and `locale` / `file` on PATCH → `400 invalid_payload`.\n\n## PUT /kal/{id}/file\nSets or replaces the KAL's pattern PDF. The body is the file itself (`fileName`, `filePath`, `fileSize`, `fileExtension`, `uploadId`, `uploadedAt`), same shape as the `file` of `POST /kal`, without `locale`. The binary is uploaded straight to Storage by the client; this only records metadata and path. Success → `204` empty body, whether it sets, replaces, or the file is already the live one (same `uploadId` → no-op). A `uploadId` already used by another `kal_files` row → `400 invalid_payload`.\n\n## Clues\n`POST /kal/{id}/clue` (201 + `{\"data\": {\"id\"}}`), `PATCH /kal/{id}/clue/{clueId}` (scalars only, 204), `DELETE /kal/{id}/clue/{clueId}` (soft delete of the clue and its meeting, 204). Unknown, deleted or foreign clue → `404 clue_not_found`.\n\n## DELETE /kal/{id}\nSoft delete of the KAL and its whole tree, one transaction, 204. Not idempotent: a second delete → 404.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -32,6 +32,14 @@
     },
     {
       "key": "previousFileUploadId",
+      "value": ""
+    },
+    {
+      "key": "clueId",
+      "value": ""
+    },
+    {
+      "key": "clueFileUploadId",
       "value": ""
     }
   ],
@@ -1197,6 +1205,610 @@
           "response": []
         },
         {
+          "name": "GET /kal — list mine (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('kalId') && !pm.environment.get('kalId')) {",
+                  "  console.warn('Run POST /kal — create first so kalId is set.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('data is a list', () => pm.expect(body.data).to.be.an('array'));",
+                  "pm.test('includes the kal created above', () => {",
+                  "  pm.expect(body.data.map(k => k.id)).to.include(pm.collectionVariables.get('kalId'));",
+                  "});",
+                  "pm.test('no inviteToken in the listing', () => {",
+                  "  body.data.forEach(k => pm.expect(k).to.not.have.property('inviteToken'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal",
+            "description": "Organizer's active KALs, latest start first. Summary only (`id`, `name`, `description`, `startsOn`, `endsOn`, `coverPath`): no clues, no file, never `inviteToken`. A participant's classrooms are a separate surface, not this list."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/{id}/clue — create (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('kalId') && !pm.environment.get('kalId')) {",
+                  "  console.warn('Run POST /kal — create first so kalId is set.');",
+                  "}",
+                  "const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';",
+                  "function ulid() {",
+                  "  let t = Date.now();",
+                  "  let time = '';",
+                  "  for (let i = 0; i < 10; i++) {",
+                  "    time = ENCODING[t % 32] + time;",
+                  "    t = Math.floor(t / 32);",
+                  "  }",
+                  "  const bytes = new Uint8Array(16);",
+                  "  crypto.getRandomValues(bytes);",
+                  "  let rand = '';",
+                  "  for (let i = 0; i < 16; i++) {",
+                  "    rand += ENCODING[bytes[i] % 32];",
+                  "  }",
+                  "  return time + rand;",
+                  "}",
+                  "pm.collectionVariables.set('clueFileUploadId', ulid());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('returns the new clue id', () => pm.expect(body.data.id).to.match(/^[0-9A-HJKMNP-TV-Z]{26}$/));",
+                  "pm.collectionVariables.set('clueId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue",
+            "description": "Same shape as each element of `clues` in `POST /kal`. The clue needs its PDF (`file`) and its `meeting`, and its dates must fall inside the KAL's range (the KAL created above runs 2026-09-01 → 2026-10-01). No `locale`: it inherits the KAL's. The server mints the id and returns it → `201 {\"data\": {\"id\": …}}`, saved to `clueId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pista 1\",\n  \"description\": \"Muntar i fer les primeres voltes\",\n  \"startsOn\": \"2026-09-02 00:00:00\",\n  \"endsOn\": \"2026-09-07 00:00:00\",\n  \"file\": {\n    \"fileName\": \"pista-1.pdf\",\n    \"filePath\": \"{{kalId}}/pista-1.pdf\",\n    \"fileSize\": 184320,\n    \"fileExtension\": \"pdf\",\n    \"uploadId\": \"{{clueFileUploadId}}\",\n    \"uploadedAt\": \"2026-09-01 12:00:00\"\n  },\n  \"meeting\": {\n    \"scheduledAt\": \"2026-09-03 18:00:00\",\n    \"url\": \"https://meet.example.com/pista-1\",\n    \"title\": \"Trobada de la pista 1\"\n  }\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/{id}/clue — outside the kal range (400)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';",
+                  "function ulid() {",
+                  "  let t = Date.now();",
+                  "  let time = '';",
+                  "  for (let i = 0; i < 10; i++) {",
+                  "    time = ENCODING[t % 32] + time;",
+                  "    t = Math.floor(t / 32);",
+                  "  }",
+                  "  const bytes = new Uint8Array(16);",
+                  "  crypto.getRandomValues(bytes);",
+                  "  let rand = '';",
+                  "  for (let i = 0; i < 16; i++) {",
+                  "    rand += ENCODING[bytes[i] % 32];",
+                  "  }",
+                  "  return time + rand;",
+                  "}",
+                  "pm.collectionVariables.set('clueFileUploadId', ulid());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('kal_clue_outside_range', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('kal_clue_outside_range');",
+                  "});",
+                  "pm.test('A clue date range falls outside the kal date range.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('A clue date range falls outside the kal date range.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue",
+            "description": "Clue dates before the KAL starts → `400 kal_clue_outside_range`; nothing written.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pista 1\",\n  \"description\": \"Muntar i fer les primeres voltes\",\n  \"startsOn\": \"2026-08-01 00:00:00\",\n  \"endsOn\": \"2026-08-05 00:00:00\",\n  \"file\": {\n    \"fileName\": \"pista-1.pdf\",\n    \"filePath\": \"{{kalId}}/pista-1.pdf\",\n    \"fileSize\": 184320,\n    \"fileExtension\": \"pdf\",\n    \"uploadId\": \"{{clueFileUploadId}}\",\n    \"uploadedAt\": \"2026-09-01 12:00:00\"\n  },\n  \"meeting\": {\n    \"scheduledAt\": \"2026-09-03 18:00:00\",\n    \"url\": \"https://meet.example.com/pista-1\",\n    \"title\": \"Trobada de la pista 1\"\n  }\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/{id}/clue — clue with its own locale (400)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';",
+                  "function ulid() {",
+                  "  let t = Date.now();",
+                  "  let time = '';",
+                  "  for (let i = 0; i < 10; i++) {",
+                  "    time = ENCODING[t % 32] + time;",
+                  "    t = Math.floor(t / 32);",
+                  "  }",
+                  "  const bytes = new Uint8Array(16);",
+                  "  crypto.getRandomValues(bytes);",
+                  "  let rand = '';",
+                  "  for (let i = 0; i < 16; i++) {",
+                  "    rand += ENCODING[bytes[i] % 32];",
+                  "  }",
+                  "  return time + rand;",
+                  "}",
+                  "pm.collectionVariables.set('clueFileUploadId', ulid());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('invalid_payload', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('invalid_payload');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue",
+            "description": "The clue inherits the KAL's locale; sending `locale` → `400 invalid_payload`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pista 1\",\n  \"description\": \"Muntar i fer les primeres voltes\",\n  \"startsOn\": \"2026-09-02 00:00:00\",\n  \"endsOn\": \"2026-09-07 00:00:00\",\n  \"file\": {\n    \"fileName\": \"pista-1.pdf\",\n    \"filePath\": \"{{kalId}}/pista-1.pdf\",\n    \"fileSize\": 184320,\n    \"fileExtension\": \"pdf\",\n    \"uploadId\": \"{{clueFileUploadId}}\",\n    \"uploadedAt\": \"2026-09-01 12:00:00\"\n  },\n  \"meeting\": {\n    \"scheduledAt\": \"2026-09-03 18:00:00\",\n    \"url\": \"https://meet.example.com/pista-1\",\n    \"title\": \"Trobada de la pista 1\"\n  },\n  \"locale\": \"ca\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /kal/{id}/clue — kal not found (404)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';",
+                  "function ulid() {",
+                  "  let t = Date.now();",
+                  "  let time = '';",
+                  "  for (let i = 0; i < 10; i++) {",
+                  "    time = ENCODING[t % 32] + time;",
+                  "    t = Math.floor(t / 32);",
+                  "  }",
+                  "  const bytes = new Uint8Array(16);",
+                  "  crypto.getRandomValues(bytes);",
+                  "  let rand = '';",
+                  "  for (let i = 0; i < 16; i++) {",
+                  "    rand += ENCODING[bytes[i] % 32];",
+                  "  }",
+                  "  return time + rand;",
+                  "}",
+                  "pm.collectionVariables.set('clueFileUploadId', ulid());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('kal_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('kal_not_found');",
+                  "});",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9/clue",
+            "description": "Unknown KAL (or not organizer / soft-deleted) → 404 `kal_not_found`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pista 1\",\n  \"description\": \"Muntar i fer les primeres voltes\",\n  \"startsOn\": \"2026-09-02 00:00:00\",\n  \"endsOn\": \"2026-09-07 00:00:00\",\n  \"file\": {\n    \"fileName\": \"pista-1.pdf\",\n    \"filePath\": \"{{kalId}}/pista-1.pdf\",\n    \"fileSize\": 184320,\n    \"fileExtension\": \"pdf\",\n    \"uploadId\": \"{{clueFileUploadId}}\",\n    \"uploadedAt\": \"2026-09-01 12:00:00\"\n  },\n  \"meeting\": {\n    \"scheduledAt\": \"2026-09-03 18:00:00\",\n    \"url\": \"https://meet.example.com/pista-1\",\n    \"title\": \"Trobada de la pista 1\"\n  }\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id}/clue/{clueId} — update (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('clueId')) {",
+                  "  console.warn('Run POST /kal/{id}/clue — create first so clueId is set.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('empty body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/{{clueId}}",
+            "description": "Partial update of scalars only: `name`, `description`, `startsOn`, `endsOn`. Omit = leave; `description: null` clears it. Dates must stay inside the KAL range. Success → 204.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pista 1 (patched)\",\n  \"description\": null\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id}/clue/{clueId} — body with file (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('invalid_payload', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('invalid_payload');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/{{clueId}}",
+            "description": "`file`, `meeting`, `locale`, `id`, `kalId`, `updatedAt` are rejected, not ignored → `400 invalid_payload`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file\": {\n    \"fileName\": \"x.pdf\"\n  }\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /kal/{id}/clue/{clueId} — clue not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('clue_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('clue_not_found');",
+                  "});",
+                  "pm.test('Clue not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Clue not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/01J5M6XQBR4GTYHN8KZXP0F1C9",
+            "description": "Unknown clue, deleted, or from another KAL → 404 `clue_not_found`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nope\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id}/clue/{clueId} — delete (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('clueId')) {",
+                  "  console.warn('Run POST /kal/{id}/clue — create first so clueId is set.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('empty body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/{{clueId}}",
+            "description": "Soft delete: marks `deleted_at` on the clue **and** its meeting, same transaction. Success → 204."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id}/clue/{clueId} — already deleted (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('clue_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('clue_not_found');",
+                  "});",
+                  "pm.test('Clue not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Clue not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/{{clueId}}",
+            "description": "Not idempotent, like `DELETE /kal/{id}`: a second delete no longer finds a live clue → 404 `clue_not_found`. Run right after the previous request."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id}/clue/{clueId} — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}/clue/{{clueId}}",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
           "name": "POST /kal/participation — create (participant token)",
           "event": [
             {
@@ -1373,6 +1985,220 @@
             },
             "url": "{{baseUrl}}/kal/participation",
             "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id} — invalid ULID (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('invalid_payload', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('invalid_payload');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/not-a-ulid",
+            "description": "A non-ULID id → `400 invalid_payload`."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id} — not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('kal_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('kal_not_found');",
+                  "});",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/01J5M6XQBR4GTYHN8KZXP0F1W9",
+            "description": "Unknown id (or not organizer / already deleted) → 404 `kal_not_found`."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id} — no Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('auth_token_missing', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Firewall deny-by-default: no Bearer → 401 `auth_token_missing`."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id} — delete (valid token)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('kalId') && !pm.environment.get('kalId')) {",
+                  "  console.warn('Run POST /kal — create first so kalId is set.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('empty body', () => {",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "**Run last**: it soft-deletes the KAL that every request above uses. Marks `deleted_at` on the KAL and on its whole tree (locales, files, clues, meetings, debate room) in one transaction. Success → 204."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /kal/{id} — already deleted (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('kal_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('kal_not_found');",
+                  "});",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "Not idempotent: a second delete no longer finds an active KAL → 404. Run right after the previous request."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /kal/{id} — after delete (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('kal_not_found', () => {",
+                  "  pm.expect(pm.response.json().code).to.eql('kal_not_found');",
+                  "});",
+                  "pm.test('Kal not found.', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('Kal not found.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/kal/{{kalId}}",
+            "description": "A deleted KAL no longer exists for anyone → 404."
           },
           "response": []
         }
