@@ -7,6 +7,7 @@ namespace Tests\Unit\Kal\Infrastructure\Persistence;
 use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -30,6 +31,14 @@ final class InMemoryKalRepository implements KalRepositoryInterface
     private array $deletedClueIds = [];
 
     private int $fileReplacements = 0;
+
+    /**
+     * Com la clau primària de `kal_files`: un `uploadId` no es pot reaprofitar
+     * mai, ni d'un fitxer esborrat ni d'un altre KAL.
+     *
+     * @var array<string, true>
+     */
+    private array $usedUploadIds = [];
 
     private ?KalStateException $failure = null;
 
@@ -55,6 +64,10 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         }
 
         $this->kals[$id] = $kal;
+
+        if (null !== $kal->file) {
+            $this->usedUploadIds[$kal->file->uploadId->value()] = true;
+        }
     }
 
     /**
@@ -81,10 +94,10 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /**
      * Com a `addClue()`: l'agregat ja porta el fitxer nou, aquí només es compta
-     * l'escriptura. Que l'`uploadId` estigui repetit ho sap Postgres, no el
-     * doble — es prova a la integració.
+     * l'escriptura.
      *
      * @throws KalNotFoundException
+     * @throws KalFileException
      * @throws KalStateException
      */
     public function replaceFile(Kal $kal): void
@@ -100,6 +113,15 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
         if (!$this->kals[$id]->organizerId->equals($kal->organizerId)) {
             throw KalNotFoundException::create();
+        }
+
+        if (null !== $kal->file) {
+            $uploadId = $kal->file->uploadId->value();
+            if (isset($this->usedUploadIds[$uploadId])) {
+                throw KalFileException::uploadIdAlreadyUsed();
+            }
+
+            $this->usedUploadIds[$uploadId] = true;
         }
 
         ++$this->fileReplacements;
