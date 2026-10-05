@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
 use App\Shared\Domain\ValueObject\UlidValue;
 use Symfony\Component\HttpFoundation\Response;
@@ -164,7 +165,7 @@ it('answers 400 with the code of the error and keeps the live file', function (a
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())->toBe($expected)
         ->and($repository->fileReplacements())->toBe(0)
-        ->and($repository->all()[0]->file?->uploadId->equals($live->uploadId))->toBeTrue();
+        ->and($repository->liveFile($kal->id->value())?->uploadId->equals($live->uploadId))->toBeTrue();
 })->with([
     'missing fileName' => [
         array_diff_key(replacedFileBody(), ['fileName' => true]),
@@ -203,8 +204,10 @@ it('answers 400 file_size_exceeded for a file above the limit', function (): voi
     );
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
-        ->and(json_decode((string) $client->getResponse()->getContent(), true)['code'] ?? null)->toBe('file_size_exceeded')
-        ->and($repository->all()[0]->file)->toBeNull();
+        ->and($client->getResponse()->getContent())->toBe(
+            '{"error":"The file size 52428800 exceeds the maximum allowed size of 5242880 bytes","code":"file_size_exceeded"}',
+        )
+        ->and($repository->liveFile($kal->id->value()))->toBeNull();
 });
 
 it('answers 400 invalid_payload when the upload id was already used by another file', function (): void {
@@ -225,7 +228,29 @@ it('answers 400 invalid_payload when the upload id was already used by another f
 
     expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_BAD_REQUEST)
         ->and($client->getResponse()->getContent())
-        ->toBe('{"error":"The upload id has already been used by another file.","code":"invalid_payload"}');
+        ->toBe('{"error":"The upload id has already been used by another file.","code":"invalid_payload"}')
+        ->and($repository->liveFile($kal->id->value()))->toBeNull();
+});
+
+it('answers 500 kal_persistence_failed and keeps the live file when the write fails', function (): void {
+    $client = static::createClient();
+    /** @var InMemoryKalRepository $repository */
+    $repository = static::getContainer()->get(KalRepositoryInterface::class);
+    $live = FileMother::create('live.pdf');
+    $kal = KalMother::create(organizerId: UlidValue::create(StubTokenHandler::USER_ID), file: $live);
+    $repository->create($kal);
+    $repository->failWith(KalStateException::persistenceFailed(new RuntimeException('connection lost')));
+
+    $client->request(
+        'PUT',
+        '/kal/'.$kal->id->value().'/file',
+        server: apiJsonHeaders(),
+        content: (string) json_encode(replacedFileBody()),
+    );
+
+    expect($client->getResponse()->getStatusCode())->toBe(Response::HTTP_INTERNAL_SERVER_ERROR)
+        ->and($client->getResponse()->getContent())->toBe('{"error":"Failed to persist the kal.","code":"kal_persistence_failed"}')
+        ->and($repository->liveFile($kal->id->value())?->uploadId->equals($live->uploadId))->toBeTrue();
 });
 
 it('answers 400 invalid_payload when the kal id is not a ULID', function (): void {
