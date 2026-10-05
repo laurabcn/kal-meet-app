@@ -74,6 +74,41 @@ it('creates a kal with its pattern file', function (): void {
         ->and($kal->file?->uploadId->equals($file->uploadId))->toBeTrue();
 });
 
+it('sets the pattern file of a kal that had none and bumps updatedAt', function (): void {
+    $kal = KalMother::create();
+    $file = FileMother::create();
+
+    $changed = $kal->replaceFile($file);
+
+    expect($changed)->toBeTrue()
+        ->and($kal->file?->uploadId->equals($file->uploadId))->toBeTrue()
+        ->and($kal->updatedAt)->not->toBeNull();
+});
+
+it('replaces the pattern file of a kal and bumps updatedAt', function (): void {
+    $kal = KalMother::create(file: FileMother::create('old.pdf'));
+    $new = FileMother::create('new.pdf');
+
+    $changed = $kal->replaceFile($new);
+
+    expect($changed)->toBeTrue()
+        ->and($kal->file?->uploadId->equals($new->uploadId))->toBeTrue()
+        ->and($kal->file?->fileName->value())->toBe('new.pdf')
+        ->and($kal->updatedAt)->not->toBeNull();
+});
+
+it('treats the live file again as a no-op that leaves updatedAt untouched', function (): void {
+    $file = FileMother::create();
+    $kal = KalMother::create(file: $file);
+
+    $changed = $kal->replaceFile($file);
+
+    // Un reintent de xarxa: si moqués `updatedAt`, el KAL diria que ha canviat sense haver-ho fet.
+    expect($changed)->toBeFalse()
+        ->and($kal->file?->uploadId->equals($file->uploadId))->toBeTrue()
+        ->and($kal->updatedAt)->toBeNull();
+});
+
 it('creates a kal with clues that are all within range', function (): void {
     $clue = ClueMother::create(
         startsOn: DateTime::create('2026-08-01 00:00:00'),
