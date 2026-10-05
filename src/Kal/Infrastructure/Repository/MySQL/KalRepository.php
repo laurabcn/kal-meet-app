@@ -8,6 +8,7 @@ use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -139,6 +140,117 @@ final readonly class KalRepository implements KalRepositoryInterface
             }
         } catch (KalNotFoundException $e) {
             throw $e;
+        } catch (\Throwable $e) {
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws KalNotFoundException
+     * @throws KalFileException
+     * @throws KalStateException
+     * @throws Exception
+     */
+    public function replaceFile(Kal $kal): void
+    {
+        $connection = $this->repository->connection();
+        $data = $this->hydrator->extract($kal);
+
+        // Sense fitxer vol dir que ningú ha cridat `Kal::replaceFile()`: marcar
+        // l'anterior sense inserir-ne cap deixaria el KAL sense PDF.
+        $file = $data['file'];
+        if (null === $file) {
+            throw KalStateException::invalidKal();
+        }
+
+        $updatedAt = $data['kal']['updated_at'];
+
+        $connection->beginTransaction();
+        try {
+            // Primer `kals`: `kal_files` no té `organizer_id`, o sigui que és
+            // aquest UPDATE qui diu que el KAL és teu. De passada bloqueja la
+            // fila, i dos PUT alhora fan cua en comptes de topar amb l'índex
+            // únic parcial de fitxers vius.
+            $affected = $connection->executeStatement(
+                'UPDATE '.self::TABLE_NAME.'
+                 SET updated_at = :updated_at
+                 WHERE id = :id
+                   AND organizer_id = :organizer_id
+                   AND deleted_at IS NULL',
+                [
+                    'updated_at' => $updatedAt,
+                    'id' => $data['kal']['id'],
+                    'organizer_id' => $data['kal']['organizer_id'],
+                ],
+            );
+
+            if (0 === $affected) {
+                throw KalNotFoundException::create();
+            }
+
+            $connection->executeStatement(
+                'UPDATE '.self::TABLE_FILES.'
+                 SET deleted_at = :deleted_at
+                 WHERE kal_id = :kal_id
+                   AND deleted_at IS NULL',
+                ['deleted_at' => $updatedAt, 'kal_id' => $data['kal']['id']],
+            );
+
+            $connection->insert(self::TABLE_FILES, $file);
+
+            $connection->commit();
+        } catch (KalNotFoundException $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw $e;
+        } catch (UniqueConstraintViolationException $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            // L'`uploadId` és la clau primària de `kal_files`: si ja hi és, el
+            // client està reaprofitant el d'un fitxer esborrat o d'un altre KAL.
+            // Error seu, no nostre. Tret d'un cas: dos PUT del mateix fitxer
+            // alhora (un reintent amb el primer encara en curs). Tots dos han
+            // carregat el KAL abans que l'altre fes commit, o sigui que el
+            // no-op del domini no els ha aturat; el segon ha esperat el bloqueig
+            // i ha topat amb la fila del primer. Si és el fitxer viu d'aquest
+            // KAL, el que demanava ja és fet.
+            if (str_contains($e->getMessage(), 'kal_files_pkey')) {
+                if ($this->isLiveFile($file['upload_id'], $file['kal_id'])) {
+                    return;
+                }
+
+                throw KalFileException::uploadIdAlreadyUsed();
+            }
+
+            // Inabastable mentre l'UPDATE de `kals` bloquegi la fila: dos PUT no
+            // poden deixar mai dos fitxers vius alhora.
+            throw KalStateException::persistenceFailed($e);
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws KalStateException
+     */
+    private function isLiveFile(string $uploadId, string $kalId): bool
+    {
+        try {
+            return false !== $this->repository->connection()->fetchOne(
+                'SELECT 1 FROM '.self::TABLE_FILES.'
+                 WHERE upload_id = :upload_id
+                   AND kal_id = :kal_id
+                   AND deleted_at IS NULL',
+                ['upload_id' => $uploadId, 'kal_id' => $kalId],
+            );
         } catch (\Throwable $e) {
             throw KalStateException::persistenceFailed($e);
         }
