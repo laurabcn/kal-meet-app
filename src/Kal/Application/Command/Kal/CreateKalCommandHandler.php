@@ -11,10 +11,7 @@ use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
 use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalStateException;
-use App\Kal\Domain\File;
-use App\Kal\Domain\Files;
 use App\Kal\Domain\Kal;
-use App\Kal\Domain\Locales;
 use App\Kal\Domain\Meeting;
 use App\Kal\Domain\Meetings;
 use App\Kal\Domain\Repository\KalRepositoryInterface;
@@ -48,9 +45,9 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
             UlidValue::create($command->organizerId),
             NonEmptyStringValue::create($command->name),
             DateTime::create($command->startsOn),
-            self::buildLocales($command->locales),
-            self::buildFiles($command->files),
+            Locale::fromString($command->locale),
             self::buildClues($command->clues),
+            null !== $command->file ? CluePayloadFactory::file($command->file) : null,
             null !== $command->description ? NonEmptyStringValue::create($command->description) : null,
             null !== $command->endsOn ? DateTime::create($command->endsOn) : null,
             $command->coverPath,
@@ -58,34 +55,6 @@ final readonly class CreateKalCommandHandler implements CommandHandlerInterface
         );
 
         $this->kalRepository->create($kal);
-    }
-
-    /**
-     * @param list<mixed> $locales
-     *
-     * @throws KalException
-     * @throws InvalidArgumentException
-     */
-    private static function buildLocales(array $locales): Locales
-    {
-        return Locales::create(array_map(
-            static fn (mixed $code): Locale => Locale::fromString(CluePayloadFactory::toString($code)),
-            $locales,
-        ));
-    }
-
-    /**
-     * @param list<mixed> $files
-     *
-     * @throws InvalidArgumentException
-     * @throws KalFileException
-     */
-    private static function buildFiles(array $files): Files
-    {
-        return Files::create(array_map(
-            static fn (mixed $data): File => CluePayloadFactory::file(CluePayloadFactory::toArray($data)),
-            $files,
-        ));
     }
 
     /**

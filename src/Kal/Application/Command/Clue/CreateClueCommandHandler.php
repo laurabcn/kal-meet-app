@@ -34,8 +34,8 @@ final readonly class CreateClueCommandHandler implements CommandHandlerInterface
     {
         $kalId = UlidValue::create($command->kalId);
 
-        // Carregar l'agregat NO és opcional: és qui comprova que sigui teu, que
-        // les dates caiguin dins del KAL i que el locale hi estigui habilitat.
+        // Carregar l'agregat NO és opcional: és qui comprova que sigui teu i
+        // que les dates caiguin dins del KAL.
         $kal = $this->kalRepository->findById($kalId, UlidValue::create($command->organizerId));
 
         $clue = CluePayloadFactory::clue(UlidValue::create($command->clueId), $command->payload);

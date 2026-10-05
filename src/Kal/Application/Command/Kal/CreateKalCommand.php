@@ -9,18 +9,17 @@ use App\Shared\Application\Command\CommandInterface;
 final readonly class CreateKalCommand implements CommandInterface
 {
     /**
-     * @param list<mixed> $locales
-     * @param list<mixed> $files
-     * @param list<mixed> $clues
-     * @param list<mixed> $meetings
+     * @param array<array-key, mixed>|null $file
+     * @param list<mixed>                  $clues
+     * @param list<mixed>                  $meetings
      */
     public function __construct(
         public string $id,
         public string $organizerId,
         public string $name,
         public string $startsOn,
-        public array $locales,
-        public array $files = [],
+        public string $locale,
+        public ?array $file = null,
         public array $clues = [],
         public ?string $description = null,
         public ?string $endsOn = null,

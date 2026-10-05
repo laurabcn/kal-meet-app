@@ -14,7 +14,6 @@ use App\Kal\Domain\Meeting;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
 use App\Shared\Domain\ValueObject\HttpsUrl;
-use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 
@@ -34,6 +33,7 @@ final readonly class CluePayloadFactory
      */
     public static function clue(UlidValue $id, array $data): Clue
     {
+        self::rejectInheritedLocale($data);
         $description = self::nullableString($data, 'description');
 
         return Clue::create(
@@ -43,7 +43,6 @@ final readonly class CluePayloadFactory
             DateTime::create(self::string($data, 'endsOn')),
             self::file(self::toArray($data['file'] ?? null)),
             self::meeting(self::toArray($data['meeting'] ?? null)),
-            Locale::fromString(self::string($data, 'locale')),
             null !== $description ? NonEmptyStringValue::create($description) : null,
         );
     }
@@ -56,12 +55,13 @@ final readonly class CluePayloadFactory
      */
     public static function file(array $data): File
     {
+        self::rejectInheritedLocale($data);
+
         return new File(
             NonEmptyStringValue::create(self::string($data, 'fileName')),
             NonEmptyStringValue::create(self::string($data, 'filePath')),
             FileSize::create(self::integer($data, 'fileSize')),
             FileExtension::tryFromStatus(self::string($data, 'fileExtension')),
-            Locale::fromString(self::string($data, 'locale')),
             UlidValue::create(self::string($data, 'uploadId')),
             DateTime::create(self::string($data, 'uploadedAt')),
         );
@@ -121,6 +121,22 @@ final readonly class CluePayloadFactory
         }
 
         return $value;
+    }
+
+    /**
+     * Pistes i fitxers hereten l'idioma del KAL. Un `locale` aquí és un client
+     * amb el contracte antic: ignorar-lo en silenci li faria creure que s'ha
+     * desat.
+     *
+     * @param array<array-key, mixed> $data
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function rejectInheritedLocale(array $data): void
+    {
+        if (\array_key_exists('locale', $data)) {
+            throw InvalidArgumentException::invalidPayload();
+        }
     }
 
     /** @throws InvalidArgumentException */

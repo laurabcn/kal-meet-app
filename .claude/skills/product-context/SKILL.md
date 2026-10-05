@@ -14,9 +14,9 @@ arrel perquè s'han de veure sempre; aquí hi ha el perquè i el què vindrà de
 - **MVP** exposa a la UI: Kal + Clues bàsiques + PatternInfo (fitxa progressiva,
   dins de Kal, sense cercador) + Participation + Photos + reunions visuals a
   nivell de KAL + 1 aula de xat (candidata, pendent d'entrevistes)
-- **Fase 2:** múltiples aules de xat per idioma, vídeos gravats per pista,
-  alliberament programat amb recordatoris, reunions visuals lligades a pista +
-  múltiples per idioma
+- **Fase 2:** vídeos gravats per pista, alliberament programat amb
+  recordatoris, reunions visuals lligades a pista. Res «per idioma»: des del
+  2026-09-29 un KAL té un sol idioma, i un KAL en dos idiomes són dos KALs
 - **Fase Patterns (post-MVP):** extreure PatternInfo al seu bounded context
   propi `src/Patterns/` (agregat, repositori, event de creació). Habilita la
   venda de patrons a través del producte (amb descompte a l'organitzadora que

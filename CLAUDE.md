@@ -122,8 +122,8 @@ applied).
   Cap text hardcoded a la UI
 
 ## Arquitectura de permisos (important!)
-- **Tota escriptura de gestió passa pel backend** (`kals`, `kal_locales`,
-  `kal_files`, `clues`, `meetings`, `debate_rooms`): l'organitzadora no crea ni
+- **Tota escriptura de gestió passa pel backend** (`kals`, `kal_files`,
+  `clues`, `meetings`, `debate_rooms`): l'organitzadora no crea ni
   modifica mai res directament contra Supabase. El client no hi té ni grants ni
   policies d'escriptura — aquestes taules es queden amb RLS activa i només
   policies de `select` (migració
@@ -144,10 +144,11 @@ applied).
   update, delete, truncate` d'`anon` i `authenticated` sobre `participations` i
   `profiles` (que van quedar fora de la llista del dia abans) i d'`anon` sobre
   les sis taules de l'agregat. Estat verificat: cap privilegi d'escriptura per a
-  `anon` ni `authenticated` a cap de les vuit
+  `anon` ni `authenticated` a cap de les vuit (set des que
+  `20260929184110_kal_single_locale_single_file.sql` va eliminar `kal_locales`)
 - **Per què una sola porta:** amb dues portes obertes a la mateixa dada, la
   validació de domini (els invariants de l'agregat `Kal`: rangs de dates de les
-  pistes, idiomes habilitats, límit de pistes) només corre per una de les dues.
+  pistes, límit de pistes) només corre per una de les dues.
   RLS sap dir *qui* pot escriure, no *què* és vàlid
 - **La lectura sí que va directa:** el frontend llegeix amb supabase-js i aquí la
   seguretat la fan les **polítiques RLS** (`*_select_*`). També segueixen anant
@@ -166,7 +167,7 @@ applied).
   diferent). La *service_role key* és una credencial de l'API REST de Supabase
   (PostgREST, supabase-js) i aquest backend no la fa servir enlloc; de fet
   `bypassrls` no salta els grants, i el rol `service_role` no té ni `SELECT`
-  sobre aquestes vuit taules, o sigui que encaminar-hi escriptures donaria
+  sobre aquestes set taules, o sigui que encaminar-hi escriptures donaria
   `permission denied for table …`. **Qüestió oberta** (la decideix l'arquitecta,
   aquí només es descriu l'estat real): si el backend s'ha de connectar amb un rol
   de privilegis mínims en comptes del superusuari
@@ -223,9 +224,9 @@ directe a Supabase amb RLS (el xat ja s'ha decidit que hi va directe).
   Llista ordenada (`position`) part de l'agregat Pattern (no de `kal-patterns`:
   no són el PDF en si, són material il·lustratiu, mateix règim que la resta de
   fotos)
-- `pattern_versions` (taula, dins `kal-patterns`) — el PDF del patró pot tenir
-  diverses versions traduïdes (`{kal_id}/{locale}.pdf`); no hi ha un "PDF
-  principal" independent de l'idioma
+- **Un KAL, un PDF de patró** (decidit 2026-09-29): `kal_files` guarda 0..1
+  fitxer viu per KAL (índex únic parcial `kal_files_kal_id_active_unique`), en
+  l'idioma del KAL. Ja no hi ha versions traduïdes dins d'un mateix KAL
 - Vídeos: MAI allotjar-ne. Només enllaços YouTube/Vimeo a `kal_videos.url`
 - Postgres només guarda metadades i paths, mai binaris
 
@@ -250,39 +251,42 @@ client és l'organitzadora" = la persona quan actua com a organitzadora.
 
 **Agregat Kal (arrel, `src/Kal/`):** id ULID · organizerId · name/description ·
 createdAt, updatedAt, startsOn, endsOn?, deletedAt (soft delete) · coverPath? ·
-pinnedMessage · inviteToken
+pinnedMessage · inviteToken · **locale** · **file?**
+- **Un sol idioma per KAL** (decidit 2026-09-29, substitueix els «idiomes
+  habilitats»): `kals.locale`, obligatori i fix des de la creació — el `PATCH`
+  el rebutja. Pistes i fitxers **no tenen locale propi**: l'hereten del KAL. Un
+  KAL en dos idiomes són dos KALs
+- **File (PDF del patró)** — 0..1 per KAL (`?File`). Un Kal es pot crear sense
+  fitxer
 - **Clue (pista)** — ENTITAT dins l'agregat: id ULID, name, description,
-  patternPath? (PDF propi de la pista), startsOn (alliberament), endsOn,
-  updatedAt, **locale** (idioma en què s'entrega la pista) i **una `Meeting`
-  obligatòria**. Invariant a l'arrel: les dates de cada clue cauen dins del rang
-  del Kal. Un Kal es pot crear buit. El `locale` ha de ser un dels habilitats al
-  KAL: ho fa complir el domini, no la BD (`clues_locale_iso` només valida el
-  format ISO de dues lletres)
+  file (PDF propi de la pista), startsOn (alliberament), endsOn, updatedAt i
+  **una `Meeting` obligatòria**. N pistes per KAL (topall tècnic
+  `Kal::MAX_CLUES`). Invariant a l'arrel: les dates de cada clue cauen dins del
+  rang del Kal. Un Kal es pot crear buit
 - **PatternInfo (fitxa tècnica)** — dins l'agregat Kal durant l'MVP (NO context
   propi encara). Camps a taula filla + jsonb: craft ('knitting'/'crochet', per
   defecte 'knitting'), garmentType?, yarnWeight?, difficulty?, patternInfo jsonb
   (sizes, finishedMeasurements, yardage, yarnsShownIn, needles, hook, notions[],
-  gauge, techniques[] — tots opcionals), versions traduïdes del PDF (locale +
-  patternPath) i imatges (storagePath + position). Es completa progressivament
-  amb `PATCH`. Kal i fitxa es creen a la MATEIXA transacció al `CreateKalCommandHandler`
+  gauge, techniques[] — tots opcionals) i imatges (storagePath + position). Es
+  completa progressivament amb `PATCH`. Kal i fitxa es creen a la MATEIXA transacció al `CreateKalCommandHandler`
   (sense event ni listener). **Dissenyat per esdevenir bounded context propi a
   la Fase Patterns** (venda + comissions + discoverable); l'esquema (mateixes
   taules i columnes) ja ho preveu, l'extracció serà neta
 - **Reunions visuals (`Meeting`)** — entitat {id ULID, scheduledAt, url, title,
   timezone, clueId?}: trobades en directe (Zoom/Meet, enllaç extern). `clueId`
-  null = reunió del KAL; informat = reunió d'una pista concreta. Poden ser
-  vàries (típicament per idioma). `timezone` (per defecte 'Europe/Madrid')
+  null = reunió del KAL; informat = reunió d'una pista concreta. Les de KAL
+  poden ser vàries. `timezone` (per defecte 'Europe/Madrid')
   perquè scheduledAt és hora local de l'organitzadora. **MVP: tots dos nivells**
   — de KAL i de pista (cada `Clue` en porta una d'obligatòria). La reunió d'una
   pista no alliberada NO la veuen les participants: ho fa complir la RLS
-  (`meetings_select_member` amb `is_clue_released(clue_id)`), no només la UI.
-  Fase 2: múltiples reunions per idioma dins del mateix àmbit
+  (`meetings_select_member` amb `is_clue_released(clue_id)`), no només la UI
 - **Aules de xat (`debate_rooms`)** — xat escrit asíncron, SEMPRE a nivell de
-  KAL, mai per pista. Poden ser vàries (típicament per idioma). Els missatges
+  KAL, mai per pista. Una per KAL (`debate_rooms_kal_id_unique`). Els missatges
   (`debate_messages`) NO tenen clueId. L'organitzadora hi participa quan pot;
   les participants es responen entre elles. Persistència: relació
   `kal_debate_rooms`. Flag `hidden` als missatges per moderació. MVP (candidat,
-  veure Funcionalitats): 1 sola aula. Fase 2: múltiples per idioma
+  veure Funcionalitats). Res «per idioma»: un KAL té un sol idioma (veure
+  l'agregat Kal), i un KAL en dos idiomes són dos KALs
 - **VideoLink** — value object {url, title, position}, opcionalment lligat a
   una clue (vídeos gravats/tutorials incrustats, YouTube/Vimeo). `url` sempre
   `https://` (mai allotjar vídeo propi)
@@ -312,8 +316,8 @@ Aquí no s'esborra res de veritat. La regla i, sobretot, **el raonament**, perqu
 qui faci el delete de pistes o de reunions no hagi de refer aquest debat:
 
 - **Cap `DELETE` d'SQL a l'app.** Tot és `UPDATE … SET deleted_at`. Totes les
-  taules de l'agregat en tenen columna: `kals`, `kal_locales`, `kal_files`,
-  `clues`, `meetings`, `debate_rooms` (migració
+  taules de l'agregat en tenen columna: `kals`, `kal_files`, `clues`,
+  `meetings`, `debate_rooms` (migració
   `20260811064206_kal_children_soft_delete.sql`)
 - **El delete del KAL marca tot l'arbre, a la mateixa transacció.** No només
   l'arrel: un KAL esborrat amb filles vives és un estat que ningú sap llegir, i
@@ -355,7 +359,7 @@ El roadmap complet per fases (MVP · Fase 2 · Fase Patterns · Fase IA) viu a l
 4. Recordatoris per email (inici de ronda; trobada 30 min abans)
 5. Reunions visuals = enllaç extern (Zoom/Meet) + horari, a nivell de KAL (poden
    ser vàries) i lligades a pista (una per pista, obligatòria). NO vídeo
-   integrat; el multi-idioma dins del mateix àmbit és Fase 2
+   integrat
 6. Moderació: organitzadora amaga fotos i expulsa participants
 7. Mètriques de validació: % participants amb ≥2 fotos, retorn setmanal, 2n KAL creat
 
@@ -367,8 +371,7 @@ KAL no viu; es valida a les entrevistes abans de construir-lo.
 **Fora de l'MVP (no implementar encara que sembli fàcil):** gamificació,
 comentaris/reaccions, integracions Instagram/Discord, push notifications,
 pagaments (Stripe), vídeo integrat (Daily.co/Jitsi), venda de patrons, Pattern
-com a context separat (Fase Patterns), múltiples aules de xat per idioma,
-múltiples reunions per idioma dins d'un mateix àmbit, assistent de creació amb
+com a context separat (Fase Patterns), assistent de creació amb
 IA (Fase IA), recomanador.
 
 ## Convencions

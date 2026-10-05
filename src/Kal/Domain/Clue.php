@@ -7,7 +7,6 @@ namespace App\Kal\Domain;
 use App\Kal\Domain\Exception\KalException;
 use App\Shared\Domain\Exception\InvalidArgumentException;
 use App\Shared\Domain\ValueObject\DateTime;
-use App\Shared\Domain\ValueObject\Locale;
 use App\Shared\Domain\ValueObject\NonEmptyStringValue;
 use App\Shared\Domain\ValueObject\UlidValue;
 
@@ -19,7 +18,6 @@ final class Clue
         public private(set) readonly ?NonEmptyStringValue $description,
         public private(set) readonly File $file,
         public private(set) readonly Meeting $meeting,
-        public private(set) readonly Locale $locale,
         public private(set) readonly DateTime $startsOn,
         public private(set) readonly DateTime $endsOn,
         public private(set) readonly DateTime $updatedAt,
@@ -37,7 +35,6 @@ final class Clue
         DateTime $endsOn,
         File $file,
         Meeting $meeting,
-        Locale $locale,
         ?NonEmptyStringValue $description = null,
     ): self {
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
@@ -49,7 +46,6 @@ final class Clue
             $description,
             $file,
             $meeting,
-            $locale,
             $startsOn,
             $endsOn,
             DateTime::now(),
@@ -68,7 +64,6 @@ final class Clue
         ?NonEmptyStringValue $description,
         File $file,
         Meeting $meeting,
-        Locale $locale,
         DateTime $startsOn,
         DateTime $endsOn,
         DateTime $updatedAt,
@@ -82,7 +77,6 @@ final class Clue
             $description,
             $file,
             $meeting,
-            $locale,
             $startsOn,
             $endsOn,
             $updatedAt,
@@ -103,7 +97,6 @@ final class Clue
         ?NonEmptyStringValue $description,
         DateTime $startsOn,
         DateTime $endsOn,
-        Locale $locale,
     ): self {
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
         self::guardMeetingWithinRange($this->meeting, $startsOn, $endsOn);
@@ -114,7 +107,6 @@ final class Clue
             $description,
             $this->file,
             $this->meeting,
-            $locale,
             $startsOn,
             $endsOn,
             DateTime::now(),

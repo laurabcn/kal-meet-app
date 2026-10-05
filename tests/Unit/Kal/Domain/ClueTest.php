@@ -11,7 +11,6 @@ use App\Shared\Domain\ValueObject\UlidValue;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\FileMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
-use Tests\Unit\Shared\Domain\ValueObject\Mother\LocaleMother;
 
 it('creates a clue when ends on is after starts on', function (): void {
     $startsOn = DateTime::create('2026-08-01 00:00:00');
@@ -28,11 +27,11 @@ it('creates a clue when ends on is after starts on', function (): void {
 });
 
 it('creates a clue carrying the file it was given', function (): void {
-    $file = FileMother::withLocale(LocaleMother::spanish());
+    $file = FileMother::create();
 
     $clue = ClueMother::create(file: $file);
 
-    expect($clue->file->locale->equals(LocaleMother::spanish()))->toBeTrue();
+    expect($clue->file->uploadId->equals($file->uploadId))->toBeTrue();
 });
 
 it('creates a clue with the name it was given', function (): void {
@@ -51,18 +50,6 @@ it('creates a clue carrying the meeting it was given', function (): void {
 
     expect($clue->meeting->id->equals($meeting->id))->toBeTrue()
         ->and($clue->meeting->title->value())->toBe('Round 1 live session');
-});
-
-it('creates a clue with the locale it was given', function (): void {
-    $clue = ClueMother::create(locale: LocaleMother::spanish());
-
-    expect($clue->locale->equals(LocaleMother::spanish()))->toBeTrue();
-});
-
-it('falls back to the locale of its file when none is given', function (): void {
-    $clue = ClueMother::create(file: FileMother::withLocale(LocaleMother::spanish()));
-
-    expect($clue->locale->equals(LocaleMother::spanish()))->toBeTrue();
 });
 
 it('throws when the meeting is scheduled before the clue starts', function (): void {
@@ -115,7 +102,7 @@ it('reconstitutes a clue preserving its persisted id and updatedAt', function ()
     $meeting = MeetingMother::create(scheduledAt: $startsOn);
     $name = NonEmptyStringValue::create('Round 1');
 
-    $clue = Clue::reconstitute($id, $name, null, $file, $meeting, $file->locale, $startsOn, $endsOn, $updatedAt);
+    $clue = Clue::reconstitute($id, $name, null, $file, $meeting, $startsOn, $endsOn, $updatedAt);
 
     expect($clue->id->equals($id))->toBeTrue()
         ->and($clue->updatedAt->equals($updatedAt))->toBeTrue()
@@ -135,7 +122,6 @@ it('rejects reconstituting a clue whose meeting falls outside its range', functi
         null,
         $file,
         MeetingMother::create(scheduledAt: DateTime::create('2026-09-01 00:00:00')),
-        $file->locale,
         $startsOn,
         $endsOn,
         $startsOn,

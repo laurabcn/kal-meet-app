@@ -28,9 +28,9 @@ final class Kal extends AggregateRoot
         public private(set) readonly UlidValue $organizerId,
         public private(set) NonEmptyStringValue $name,
         public private(set) ?NonEmptyStringValue $description,
-        public private(set) readonly Files $files,
+        public private(set) readonly ?File $file,
         public private(set) readonly Clues $clues,
-        public private(set) readonly Locales $locales,
+        public private(set) readonly Locale $locale,
         public private(set) DateTime $startsOn,
         public private(set) ?DateTime $endsOn,
         public private(set) ?string $coverPath,
@@ -53,9 +53,9 @@ final class Kal extends AggregateRoot
         UlidValue $organizerId,
         NonEmptyStringValue $name,
         DateTime $startsOn,
-        Locales $locales,
-        Files $files,
+        Locale $locale,
         Clues $clues,
+        ?File $file = null,
         ?NonEmptyStringValue $description = null,
         ?DateTime $endsOn = null,
         ?string $coverPath = null,
@@ -64,9 +64,6 @@ final class Kal extends AggregateRoot
         self::guardClueLimit($clues->count());
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
         self::guardCluesWithinRange($clues, $startsOn, $endsOn);
-        self::guardFilesLocaleEnabled($files, $locales);
-        self::guardCluesFileLocaleEnabled($clues, $locales);
-        self::guardCluesLocaleEnabled($clues, $locales);
 
         $now = DateTime::now();
 
@@ -75,9 +72,9 @@ final class Kal extends AggregateRoot
             $organizerId,
             $name,
             $description,
-            $files,
+            $file,
             $clues,
-            $locales,
+            $locale,
             $startsOn,
             $endsOn,
             $coverPath,
@@ -96,9 +93,9 @@ final class Kal extends AggregateRoot
         UlidValue $organizerId,
         NonEmptyStringValue $name,
         ?NonEmptyStringValue $description,
-        Files $files,
+        ?File $file,
         Clues $clues,
-        Locales $locales,
+        Locale $locale,
         DateTime $startsOn,
         ?DateTime $endsOn,
         ?string $coverPath,
@@ -111,18 +108,15 @@ final class Kal extends AggregateRoot
     ): self {
         self::guardAgainstInvalidDateRange($startsOn, $endsOn);
         self::guardCluesWithinRange($clues, $startsOn, $endsOn);
-        self::guardFilesLocaleEnabled($files, $locales);
-        self::guardCluesFileLocaleEnabled($clues, $locales);
-        self::guardCluesLocaleEnabled($clues, $locales);
 
         return new self(
             $id,
             $organizerId,
             $name,
             $description,
-            $files,
+            $file,
             $clues,
-            $locales,
+            $locale,
             $startsOn,
             $endsOn,
             $coverPath,
@@ -140,8 +134,6 @@ final class Kal extends AggregateRoot
     {
         self::guardClueLimit($this->clues->count() + 1);
         self::guardClueWithinRange($clue, $this->startsOn, $this->endsOn);
-        self::guardFileLocaleEnabled($clue->file, $this->locales);
-        self::guardClueLocaleEnabled($clue, $this->locales);
 
         $this->clues->add($clue);
     }
@@ -160,12 +152,10 @@ final class Kal extends AggregateRoot
         ?NonEmptyStringValue $description,
         DateTime $startsOn,
         DateTime $endsOn,
-        Locale $locale,
     ): Clue {
-        $updated = $this->clues->get($clueId)->withDetails($name, $description, $startsOn, $endsOn, $locale);
+        $updated = $this->clues->get($clueId)->withDetails($name, $description, $startsOn, $endsOn);
 
         self::guardClueWithinRange($updated, $this->startsOn, $this->endsOn);
-        self::guardClueLocaleEnabled($updated, $this->locales);
 
         $this->clues->replace($updated);
 
@@ -248,46 +238,6 @@ final class Kal extends AggregateRoot
     {
         foreach ($clues->all() as $clue) {
             self::guardClueWithinRange($clue, $startsOn, $endsOn);
-        }
-    }
-
-    /** @throws KalException */
-    private static function guardFilesLocaleEnabled(Files $files, Locales $locales): void
-    {
-        foreach ($files->all() as $file) {
-            self::guardFileLocaleEnabled($file, $locales);
-        }
-    }
-
-    /** @throws KalException */
-    private static function guardCluesFileLocaleEnabled(Clues $clues, Locales $locales): void
-    {
-        foreach ($clues->all() as $clue) {
-            self::guardFileLocaleEnabled($clue->file, $locales);
-        }
-    }
-
-    /** @throws KalException */
-    private static function guardFileLocaleEnabled(File $file, Locales $locales): void
-    {
-        if (!$locales->contains($file->locale)) {
-            throw KalException::fileLocaleNotEnabled();
-        }
-    }
-
-    /** @throws KalException */
-    private static function guardCluesLocaleEnabled(Clues $clues, Locales $locales): void
-    {
-        foreach ($clues->all() as $clue) {
-            self::guardClueLocaleEnabled($clue, $locales);
-        }
-    }
-
-    /** @throws KalException */
-    private static function guardClueLocaleEnabled(Clue $clue, Locales $locales): void
-    {
-        if (!$locales->contains($clue->locale)) {
-            throw KalException::clueLocaleNotEnabled();
         }
     }
 

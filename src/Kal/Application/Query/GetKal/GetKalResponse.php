@@ -9,7 +9,6 @@ use App\Kal\Domain\File;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\Meeting;
 use App\Shared\Application\Query\ResponseInterface;
-use App\Shared\Domain\ValueObject\Locale;
 
 final readonly class GetKalResponse implements ResponseInterface
 {
@@ -29,14 +28,11 @@ final readonly class GetKalResponse implements ResponseInterface
             'startsOn' => $this->kal->startsOn->value(),
             'endsOn' => $this->kal->endsOn?->value(),
             'coverPath' => $this->kal->coverPath,
-            'locales' => array_map(
-                static fn (Locale $locale): string => $locale->value(),
-                $this->kal->locales->all(),
-            ),
+            'locale' => $this->kal->locale->value(),
             'inviteToken' => $this->kal->inviteToken->value(),
             'meetings' => array_map(self::meeting(...), $this->kal->meetings->all()),
             'clues' => array_map(self::clue(...), $this->kal->clues->all()),
-            'files' => array_map(self::file(...), $this->kal->files->all()),
+            'file' => null !== $this->kal->file ? self::file($this->kal->file) : null,
         ];
     }
 
@@ -66,7 +62,6 @@ final readonly class GetKalResponse implements ResponseInterface
             'startsOn' => $clue->startsOn->value(),
             'endsOn' => $clue->endsOn->value(),
             'updatedAt' => $clue->updatedAt->value(),
-            'locale' => $clue->locale->value(),
             'file' => self::file($clue->file),
             'meeting' => self::meeting($clue->meeting),
         ];
@@ -82,7 +77,6 @@ final readonly class GetKalResponse implements ResponseInterface
             'filePath' => $file->filePath->value(),
             'fileSize' => $file->fileSize->value(),
             'fileExtension' => $file->fileExtension->value(),
-            'locale' => $file->locale->value(),
             'uploadId' => $file->uploadId->value(),
             'uploadedAt' => $file->uploadedAt->value(),
         ];

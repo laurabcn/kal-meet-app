@@ -16,8 +16,7 @@ final readonly class UpdateClueCommand implements CommandInterface
      *     name?: string,
      *     description?: ?string,
      *     startsOn?: string,
-     *     endsOn?: string,
-     *     locale?: string
+     *     endsOn?: string
      * } $changes
      */
     public function __construct(

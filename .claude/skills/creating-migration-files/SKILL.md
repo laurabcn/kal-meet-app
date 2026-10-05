@@ -113,8 +113,16 @@ L'esquema i el codi han d'anar junts o es podreixen sense que res ho digui:
 - NEVER `supabase db reset` sense avisar (esborra les dades locals)
 - NEVER `supabase db push` (no hi ha remot linkat)
 - Editar el fitxer generat sí; això és el flux normal
-- Migració endavant-compatible: el codi antic ha de seguir funcionant amb
-  l'esquema nou (afegir columnes nullable, no reaprofitar noms)
+- **Mentre no hi hagi dades enlloc, no hi ha migració de dades.** Ni local ni
+  producció tenen dades que calgui conservar (confirmat per la desenvolupadora
+  el 2026-09-29; producció no existeix encara). Una migració pot canviar
+  l'esquema i el codi al mateix commit: esborrar columnes i taules, posar
+  `not null` directament, crear índexs únics sense deduplicar abans. No escriure
+  backfills, deduplicacions ni passos en dues fases «per si hi ha files»; si una
+  BD local té dades de proves que molesten, la resposta és `supabase db reset`
+- Això canvia el dia del primer desplegament: a partir d'aleshores, migració
+  endavant-compatible (el codi antic ha de seguir funcionant amb l'esquema nou:
+  columnes nullable, no reaprofitar noms) i les dades existents s'han de migrar
 </rules>
 
 <checklist>

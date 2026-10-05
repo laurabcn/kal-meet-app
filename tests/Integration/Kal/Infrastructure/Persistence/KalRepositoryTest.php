@@ -19,7 +19,6 @@ use Tests\Integration\Kal\Infrastructure\Persistence\SupabaseConnection;
 use Tests\Unit\Kal\Domain\Mother\ClueMother;
 use Tests\Unit\Kal\Domain\Mother\CluesMother;
 use Tests\Unit\Kal\Domain\Mother\FileMother;
-use Tests\Unit\Kal\Domain\Mother\FilesMother;
 use Tests\Unit\Kal\Domain\Mother\KalMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingMother;
 use Tests\Unit\Kal\Domain\Mother\MeetingsMother;
@@ -54,7 +53,7 @@ afterEach(function (): void {
 
 it('writes the whole aggregate across its tables', function (): void {
     $kal = KalMother::create(
-        files: FilesMother::of(FileMother::create()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         organizerId: $this->organizerId,
         meetings: MeetingsMother::of(MeetingMother::create()),
@@ -66,7 +65,7 @@ it('writes the whole aggregate across its tables', function (): void {
     $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
 
     expect($count('SELECT count(*) FROM kals WHERE id = :id'))->toBe(1)
-        ->and($count('SELECT count(*) FROM kal_locales WHERE kal_id = :id'))->toBe(2)
+        ->and($this->connection->fetchOne('SELECT locale FROM kals WHERE id = :id', ['id' => $id]))->toBe($kal->locale->value())
         ->and($count('SELECT count(*) FROM kal_files WHERE kal_id = :id'))->toBe(1)
         ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(1)
         // Dues: la del KAL i la obligatòria de la pista.
@@ -132,13 +131,14 @@ it('leaves nothing behind when a later insert fails', function (): void {
 
     try {
         $this->connection->executeStatement(
-            'INSERT INTO kals (id, organizer_id, name, starts_on, invite_token, created_at, updated_at)
-             VALUES (:id, :organizer_id, :name, :starts_on, :invite_token, :created_at, :updated_at)',
+            'INSERT INTO kals (id, organizer_id, name, starts_on, locale, invite_token, created_at, updated_at)
+             VALUES (:id, :organizer_id, :name, :starts_on, :locale, :invite_token, :created_at, :updated_at)',
             [
                 'id' => $decoyId,
                 'organizer_id' => $organizerId->value(),
                 'name' => 'Decoy',
                 'starts_on' => '2026-08-01 00:00:00',
+                'locale' => 'ca',
                 'invite_token' => UlidValue::generate()->value(),
                 'created_at' => '2026-08-01 00:00:00',
                 'updated_at' => '2026-08-01 00:00:00',
@@ -165,7 +165,7 @@ it('leaves nothing behind when a later insert fails', function (): void {
         $count = fn (string $sql): int => (int) $this->connection->fetchOne($sql, ['id' => $id]);
 
         expect($count('SELECT count(*) FROM kals WHERE id = :id'))->toBe(0)
-            ->and($count('SELECT count(*) FROM kal_locales WHERE kal_id = :id'))->toBe(0)
+            ->and($count('SELECT count(*) FROM kal_files WHERE kal_id = :id'))->toBe(0)
             ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(0);
     } finally {
         // Sense transacció que ho desfaci, i també si l'asserció ha petat: les
@@ -205,7 +205,7 @@ it('throws kal_not_found when the kal is soft-deleted', function (): void {
 
 it('reconstructs the full aggregate graph, including the invite token', function (): void {
     $kal = KalMother::create(
-        files: FilesMother::of(FileMother::create()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         organizerId: $this->organizerId,
         meetings: MeetingsMother::of(MeetingMother::create()),
@@ -220,10 +220,8 @@ it('reconstructs the full aggregate graph, including the invite token', function
         ->and($found->name->value())->toBe($kal->name->value())
         ->and($found->inviteToken->equals($kal->inviteToken))->toBeTrue()
         ->and($found->inviteToken->value())->not->toBe('')
-        ->and(array_map(fn ($locale) => $locale->value(), $found->locales->all()))
-            ->toEqualCanonicalizing(array_map(fn ($locale) => $locale->value(), $kal->locales->all()))
-        ->and($found->files->all())->toHaveCount(1)
-        ->and($found->files->all()[0]->fileName->value())->toBe($kal->files->all()[0]->fileName->value())
+        ->and($found->locale->equals($kal->locale))->toBeTrue()
+        ->and($found->file?->fileName->value())->toBe($kal->file?->fileName->value())
         ->and($found->clues->all())->toHaveCount(1)
         ->and($found->clues->all()[0]->id->equals($kal->clues->all()[0]->id))->toBeTrue()
         ->and($found->clues->all()[0]->meeting->id->equals($kal->clues->all()[0]->meeting->id))->toBeTrue()
@@ -337,7 +335,7 @@ it('reports a kal whose debate room went missing as unreadable', function (): vo
 
 it('updates scalar kal columns without touching child tables', function (): void {
     $kal = KalMother::create(
-        files: FilesMother::of(FileMother::create()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         organizerId: $this->organizerId,
         endsOn: DateTime::create('2026-09-01 00:00:00'),
@@ -364,7 +362,7 @@ it('updates scalar kal columns without touching child tables', function (): void
         ->and($row['description'])->toBe('Updated description')
         ->and($row['cover_path'])->toBe('updated/cover.webp')
         ->and($row['invite_token'])->toBe($kal->inviteToken->value())
-        ->and($count('SELECT count(*) FROM kal_locales WHERE kal_id = :id'))->toBe(2)
+        ->and($row['locale'])->toBe($kal->locale->value())
         ->and($count('SELECT count(*) FROM kal_files WHERE kal_id = :id'))->toBe(1)
         ->and($count('SELECT count(*) FROM clues WHERE kal_id = :id'))->toBe(1)
         ->and($count('SELECT count(*) FROM meetings WHERE kal_id = :id'))->toBe(2)
@@ -402,7 +400,7 @@ it('throws kal_not_found when updating a soft-deleted kal', function (): void {
 
 it('marks deleted_at on the kal and cascades it to every child row', function (): void {
     $kal = KalMother::create(
-        files: FilesMother::of(FileMother::create()),
+        file: FileMother::create(),
         clues: CluesMother::of(ClueMother::create()),
         organizerId: $this->organizerId,
         meetings: MeetingsMother::of(MeetingMother::create()),
@@ -426,12 +424,10 @@ it('marks deleted_at on the kal and cascades it to every child row', function ()
     // Cap fila desapareix: totes queden, totes marcades.
     expect($row)->not->toBeFalse()
         ->and($row['deleted_at'])->not->toBeNull()
-        ->and($marked('kal_locales'))->toBe(2)
         ->and($marked('kal_files'))->toBe(1)
         ->and($marked('clues'))->toBe(1)
         ->and($marked('meetings'))->toBe(2)
         ->and($marked('debate_rooms'))->toBe(1)
-        ->and($alive('kal_locales'))->toBe(0)
         ->and($alive('kal_files'))->toBe(0)
         ->and($alive('clues'))->toBe(0)
         ->and($alive('meetings'))->toBe(0)
@@ -441,6 +437,30 @@ it('marks deleted_at on the kal and cascades it to every child row', function ()
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
     expect(fn () => $this->repository->getActiveById($kal->id))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+// Un KAL té com a molt un fitxer viu. El domini ja no en pot expressar dos, però
+// la BD n'és la xarxa de sota; i l'índex és parcial perquè un fitxer esborrat
+// no bloquegi pujar-ne un de nou. Dos tests i no un: el primer deixa la
+// transacció del test avortada, i res no pot venir després de la violació.
+it('refuses a second active file for the same kal', function (): void {
+    $kal = KalMother::create(file: FileMother::create(), organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    expect(fn () => $this->connection->insert('kal_files', secondKalFileRow($kal->id->value())))
+        ->toThrow(UniqueConstraintViolationException::class, 'kal_files_kal_id_active_unique');
+});
+
+it('accepts a new file once the previous one is soft-deleted', function (): void {
+    $kal = KalMother::create(file: FileMother::create(), organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $this->connection->executeStatement(
+        'UPDATE kal_files SET deleted_at = now() WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    expect($this->connection->insert('kal_files', secondKalFileRow($kal->id->value())))->toBe(1);
 });
 
 it('leaves the children of another kal untouched', function (): void {
@@ -466,8 +486,7 @@ it('leaves the children of another kal untouched', function (): void {
         ['id' => $survivorId],
     );
 
-    expect($alive('kal_locales'))->toBe(2)
-        ->and($alive('clues'))->toBe(1)
+    expect($alive('clues'))->toBe(1)
         ->and($alive('meetings'))->toBe(2)
         ->and($alive('debate_rooms'))->toBe(1)
         ->and($this->repository->findById($survivor->id, $this->organizerId)->clues->all())->toHaveCount(1);
@@ -622,7 +641,6 @@ it('updates the scalar columns of a clue without touching its file or meeting', 
         NonEmptyStringValue::create('Nova'),
         $clue->startsOn,
         $clue->endsOn,
-        $clue->locale,
     );
     $this->repository->updateClue($kal->id, $updated);
 
@@ -725,3 +743,16 @@ it('throws kal_not_found when deleting an already deleted kal', function (): voi
     expect(fn () => $this->repository->delete($kal))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
 });
+
+/** @return array<string, int|string> */
+function secondKalFileRow(string $kalId): array
+{
+    return [
+        'upload_id' => UlidValue::generate()->value(),
+        'kal_id' => $kalId,
+        'file_name' => 'segon.pdf',
+        'file_path' => 'kal-patterns/segon.pdf',
+        'file_size' => 1024,
+        'file_extension' => 'pdf',
+    ];
+}
