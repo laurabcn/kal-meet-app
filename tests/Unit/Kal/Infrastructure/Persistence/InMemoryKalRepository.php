@@ -29,6 +29,8 @@ final class InMemoryKalRepository implements KalRepositoryInterface
     /** @var list<string> */
     private array $deletedClueIds = [];
 
+    private int $fileReplacements = 0;
+
     private ?KalStateException $failure = null;
 
     /** La propera escriptura peta, com quan cau la BD a mig `create()`. */
@@ -75,6 +77,37 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         }
 
         $this->kals[$id] = $kal;
+    }
+
+    /**
+     * Com a `addClue()`: l'agregat ja porta el fitxer nou, aquí només es compta
+     * l'escriptura. Que l'`uploadId` estigui repetit ho sap Postgres, no el
+     * doble — es prova a la integració.
+     *
+     * @throws KalNotFoundException
+     * @throws KalStateException
+     */
+    public function replaceFile(Kal $kal): void
+    {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        $id = $kal->id->value();
+        if (isset($this->deletedIds[$id]) || !isset($this->kals[$id])) {
+            throw KalNotFoundException::create();
+        }
+
+        if (!$this->kals[$id]->organizerId->equals($kal->organizerId)) {
+            throw KalNotFoundException::create();
+        }
+
+        ++$this->fileReplacements;
+    }
+
+    public function fileReplacements(): int
+    {
+        return $this->fileReplacements;
     }
 
     /**
