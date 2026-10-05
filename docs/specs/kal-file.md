@@ -196,6 +196,12 @@ perquè el client no n'hagi d'aprendre dues.
   la propietat, bloqueja la fila del KAL. Així dos `PUT` simultanis fan cua en
   comptes de topar amb l'índex únic parcial `kal_files_kal_id_active_unique`,
   que donaria un 500.
+- **Dos `PUT` del mateix fitxer alhora també són un no-op (`204`).** Si el
+  client reintenta amb la primera petició encara en curs, totes dues carreguen
+  el KAL abans que l'altra faci commit, i el no-op del domini no atura cap de
+  les dues. La segona espera el bloqueig i topa amb `kal_files_pkey`. Abans de
+  respondre `400`, el repositori mira si aquell `uploadId` ja és el fitxer viu
+  d'aquest KAL: si ho és, torna sense error.
 - **El 404 surt abans que el 400 del fitxer.** El controller només valida
   l'ULID i el JSON; el cos el valida el handler *després* de carregar el KAL.
   Així ningú pot saber quins KALs existeixen enviant fitxers invàlids. És

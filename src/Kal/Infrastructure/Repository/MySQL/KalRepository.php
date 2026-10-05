@@ -212,17 +212,46 @@ final readonly class KalRepository implements KalRepositoryInterface
 
             // L'`uploadId` és la clau primària de `kal_files`: si ja hi és, el
             // client està reaprofitant el d'un fitxer esborrat o d'un altre KAL.
-            // Error seu, no nostre. Qualsevol altre unique és estat trencat.
+            // Error seu, no nostre. Tret d'un cas: dos PUT del mateix fitxer
+            // alhora (un reintent amb el primer encara en curs). Tots dos han
+            // carregat el KAL abans que l'altre fes commit, o sigui que el
+            // no-op del domini no els ha aturat; el segon ha esperat el bloqueig
+            // i ha topat amb la fila del primer. Si és el fitxer viu d'aquest
+            // KAL, el que demanava ja és fet.
             if (str_contains($e->getMessage(), 'kal_files_pkey')) {
+                if ($this->isLiveFile($file['upload_id'], $file['kal_id'])) {
+                    return;
+                }
+
                 throw KalFileException::uploadIdAlreadyUsed();
             }
 
+            // Inabastable mentre l'UPDATE de `kals` bloquegi la fila: dos PUT no
+            // poden deixar mai dos fitxers vius alhora.
             throw KalStateException::persistenceFailed($e);
         } catch (\Throwable $e) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();
             }
 
+            throw KalStateException::persistenceFailed($e);
+        }
+    }
+
+    /**
+     * @throws KalStateException
+     */
+    private function isLiveFile(string $uploadId, string $kalId): bool
+    {
+        try {
+            return false !== $this->repository->connection()->fetchOne(
+                'SELECT 1 FROM '.self::TABLE_FILES.'
+                 WHERE upload_id = :upload_id
+                   AND kal_id = :kal_id
+                   AND deleted_at IS NULL',
+                ['upload_id' => $uploadId, 'kal_id' => $kalId],
+            );
+        } catch (\Throwable $e) {
             throw KalStateException::persistenceFailed($e);
         }
     }

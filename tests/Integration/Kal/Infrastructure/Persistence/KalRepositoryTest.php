@@ -867,6 +867,48 @@ it('rejects the upload id of a file that belongs to another kal', function (): v
         ->and($count($other->id->value()))->toBe(1);
 });
 
+// Dos PUT del mateix fitxer alhora, sense fils: `$stale` és el KAL tal com el
+// va carregar la segona petició, abans que la primera fes commit. Per a ell el
+// fitxer viu encara és el vell, i el no-op del domini no l'atura.
+it('treats a concurrent put of the same file as a no-op instead of rejecting it', function (): void {
+    $old = FileMother::create('old.pdf');
+    $kal = KalMother::create(file: $old, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $new = FileMother::create('new.pdf');
+
+    $stale = $this->repository->findById($kal->id, $this->organizerId);
+    $first = $this->repository->findById($kal->id, $this->organizerId);
+    $first->replaceFile($new);
+    $this->repository->replaceFile($first);
+
+    expect($stale->replaceFile($new))->toBeTrue();
+    $this->repository->replaceFile($stale);
+
+    $rows = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($rows)->toHaveCount(2)
+        ->and($rows[$old->uploadId->value()])->not->toBeNull()
+        ->and($rows[$new->uploadId->value()])->toBeNull();
+});
+
+it('refuses to replace the file of a kal that carries none, and writes nothing', function (): void {
+    $live = FileMother::create();
+    $kal = KalMother::create(file: $live, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $withoutFile = KalMother::create(id: $kal->id, organizerId: $this->organizerId);
+
+    expect(fn () => $this->repository->replaceFile($withoutFile))
+        ->toThrow(KalStateException::class);
+
+    $files = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($files)->toBe([$live->uploadId->value() => null]);
+});
+
 /** @return array<string, int|string> */
 function secondKalFileRow(string $kalId): array
 {
