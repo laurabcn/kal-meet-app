@@ -67,6 +67,13 @@ function testKeyMaterial(): array
         throw new \RuntimeException('Unable to read the ES256 test key coordinates');
     }
 
+    // OpenSSL les dona com a enters, sense zeros a l'esquerra: ~1 clau de cada
+    // 115 surt amb una coordenada de 31 bytes. El JWK les vol de 32 (RFC 7518
+    // §6.2.1.2), i firebase munta el punt concatenant-les tal qual: amb una de
+    // curta el punt és invàlid i cap signatura bona verifica. Era el flaky.
+    $x = str_pad($x, 32, "\0", \STR_PAD_LEFT);
+    $y = str_pad($y, 32, "\0", \STR_PAD_LEFT);
+
     $material = [
         'private' => $privatePem,
         'jwks' => ['keys' => [[
