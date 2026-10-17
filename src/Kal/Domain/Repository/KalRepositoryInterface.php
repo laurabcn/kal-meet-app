@@ -8,6 +8,7 @@ use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\ClueNotFoundException;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -32,6 +33,17 @@ interface KalRepositoryInterface
      * @throws KalStateException
      */
     public function update(Kal $kal): void;
+
+    /**
+     * Marca amb `deleted_at` el fitxer viu del KAL, si en té, i insereix
+     * `$kal->file` a la mateixa transacció. Toca només `kal_files` i
+     * `kals.updated_at`.
+     *
+     * @throws KalNotFoundException
+     * @throws KalFileException     si l'`uploadId` ja és d'una altra fila de `kal_files`
+     * @throws KalStateException
+     */
+    public function replaceFile(Kal $kal): void;
 
     /**
      * Soft delete: marca `deleted_at` i el KAL deixa d'existir per a tothom.

@@ -7,8 +7,10 @@ namespace Tests\Unit\Kal\Infrastructure\Persistence;
 use App\Kal\Domain\Clue;
 use App\Kal\Domain\Exception\KalAlreadyExistsException;
 use App\Kal\Domain\Exception\KalException;
+use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
+use App\Kal\Domain\File;
 use App\Kal\Domain\InviteToken;
 use App\Kal\Domain\Kal;
 use App\Kal\Domain\KalSummary;
@@ -28,6 +30,26 @@ final class InMemoryKalRepository implements KalRepositoryInterface
 
     /** @var list<string> */
     private array $deletedClueIds = [];
+
+    private int $fileReplacements = 0;
+
+    /**
+     * Com la clau primària de `kal_files`: un `uploadId` no es pot reaprofitar
+     * mai, ni d'un fitxer esborrat ni d'un altre KAL.
+     *
+     * @var array<string, true>
+     */
+    private array $usedUploadIds = [];
+
+    /**
+     * El fitxer viu de cada KAL tal com el tindria la BD. `findById()` torna la
+     * mateixa instància que hi ha desada, o sigui que l'agregat ja porta el
+     * fitxer nou abans que l'escriptura falli; Postgres el desfaria, l'objecte
+     * no. Per comprovar què queda després d'un error, mira aquí, no l'agregat.
+     *
+     * @var array<string, ?File>
+     */
+    private array $liveFiles = [];
 
     private ?KalStateException $failure = null;
 
@@ -53,6 +75,12 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         }
 
         $this->kals[$id] = $kal;
+
+        if (null !== $kal->file) {
+            $this->usedUploadIds[$kal->file->uploadId->value()] = true;
+        }
+
+        $this->liveFiles[$id] = $kal->file;
     }
 
     /**
@@ -75,6 +103,60 @@ final class InMemoryKalRepository implements KalRepositoryInterface
         }
 
         $this->kals[$id] = $kal;
+    }
+
+    /**
+     * Com a `addClue()`: l'agregat ja porta el fitxer nou, aquí només es compta
+     * l'escriptura.
+     *
+     * @throws KalNotFoundException
+     * @throws KalFileException
+     * @throws KalStateException
+     */
+    public function replaceFile(Kal $kal): void
+    {
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        $id = $kal->id->value();
+        if (isset($this->deletedIds[$id]) || !isset($this->kals[$id])) {
+            throw KalNotFoundException::create();
+        }
+
+        if (!$this->kals[$id]->organizerId->equals($kal->organizerId)) {
+            throw KalNotFoundException::create();
+        }
+
+        $file = $kal->file;
+        if (null === $file) {
+            throw KalStateException::invalidKal();
+        }
+
+        $uploadId = $file->uploadId->value();
+        if (isset($this->usedUploadIds[$uploadId])) {
+            // Com el repositori real: si ja és el viu d'aquest KAL, l'ha escrit
+            // un PUT concurrent i no és cap error.
+            if (true === $this->liveFiles[$id]?->uploadId->equals($file->uploadId)) {
+                return;
+            }
+
+            throw KalFileException::uploadIdAlreadyUsed();
+        }
+
+        $this->usedUploadIds[$uploadId] = true;
+        $this->liveFiles[$id] = $file;
+        ++$this->fileReplacements;
+    }
+
+    public function fileReplacements(): int
+    {
+        return $this->fileReplacements;
+    }
+
+    public function liveFile(string $id): ?File
+    {
+        return $this->liveFiles[$id] ?? null;
     }
 
     /**

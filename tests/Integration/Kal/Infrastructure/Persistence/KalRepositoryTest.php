@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Kal\Domain\Exception\ClueNotFoundException;
+use App\Kal\Domain\Exception\KalFileException;
 use App\Kal\Domain\Exception\KalNotFoundException;
 use App\Kal\Domain\Exception\KalStateException;
 use App\Kal\Domain\InviteToken;
@@ -742,6 +743,170 @@ it('throws kal_not_found when deleting an already deleted kal', function (): voi
 
     expect(fn () => $this->repository->delete($kal))
         ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+it('writes the first pattern file of a kal and bumps kals.updated_at', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $file = FileMother::create();
+
+    $kal->replaceFile($file);
+    $this->repository->replaceFile($kal);
+
+    $id = $kal->id->value();
+    $live = $this->connection->fetchFirstColumn(
+        'SELECT upload_id FROM kal_files WHERE kal_id = :id AND deleted_at IS NULL',
+        ['id' => $id],
+    );
+    $found = $this->repository->findById($kal->id, $this->organizerId);
+
+    expect($live)->toBe([$file->uploadId->value()])
+        ->and($found->file?->uploadId->equals($file->uploadId))->toBeTrue()
+        ->and($found->updatedAt?->value())->toBe($kal->updatedAt?->value());
+});
+
+it('replaces the live file by marking it, never deleting it', function (): void {
+    $old = FileMother::create('old.pdf');
+    $kal = KalMother::create(file: $old, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $new = FileMother::create('new.pdf');
+
+    $kal->replaceFile($new);
+    $this->repository->replaceFile($kal);
+
+    $rows = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    // Les dues files hi són: la vella marcada, la nova viva.
+    expect($rows)->toHaveCount(2)
+        ->and($rows[$old->uploadId->value()])->not->toBeNull()
+        ->and($rows[$new->uploadId->value()])->toBeNull()
+        ->and($this->repository->findById($kal->id, $this->organizerId)->file?->fileName->value())->toBe('new.pdf');
+});
+
+it('throws kal_not_found and leaves the files alone when the kal is not yours', function (): void {
+    $live = FileMother::create();
+    $kal = KalMother::create(file: $live, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $stranger = UlidValue::generate();
+    SupabaseConnection::insertProfile($stranger->value());
+    $intruder = KalMother::create(id: $kal->id, organizerId: $stranger, file: FileMother::create());
+
+    expect(fn () => $this->repository->replaceFile($intruder))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+
+    $files = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($files)->toBe([$live->uploadId->value() => null]);
+});
+
+it('throws kal_not_found when replacing the file of a soft-deleted kal', function (): void {
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $this->connection->executeStatement(
+        'UPDATE kals SET deleted_at = now() WHERE id = :id',
+        ['id' => $kal->id->value()],
+    );
+
+    $kal->replaceFile(FileMother::create());
+
+    expect(fn () => $this->repository->replaceFile($kal))
+        ->toThrow(KalNotFoundException::class, 'Kal not found.');
+});
+
+// Reaprofitar l'`uploadId` d'un fitxer ja marcat fa petar l'INSERT DESPRÉS
+// d'haver marcat el viu: és l'escenari 7 de la spec (fallada a mitja
+// substitució) sense cap fila esquer. A diferència de 'leaves nothing behind
+// when a later insert fails', aquí pot córrer dins la transacció del test: es
+// comprova que el fitxer viu HI SIGUI, no que no hi hagi res. Si el repositori
+// no obrís transacció, el seu rollback s'enduria la del test i amb ella el KAL,
+// i el comptador donaria 0 en comptes d'1.
+it('rejects reusing the upload id of a deleted file and keeps the live one alive', function (): void {
+    $first = FileMother::create('first.pdf');
+    $kal = KalMother::create(file: $first, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $second = FileMother::create('second.pdf');
+    $kal->replaceFile($second);
+    $this->repository->replaceFile($kal);
+
+    $kal->replaceFile($first);
+
+    expect(fn () => $this->repository->replaceFile($kal))
+        ->toThrow(KalFileException::class, 'The upload id has already been used by another file.');
+
+    $live = $this->connection->fetchFirstColumn(
+        'SELECT upload_id FROM kal_files WHERE kal_id = :id AND deleted_at IS NULL',
+        ['id' => $kal->id->value()],
+    );
+    expect($live)->toBe([$second->uploadId->value()]);
+});
+
+it('rejects the upload id of a file that belongs to another kal', function (): void {
+    $theirs = FileMother::create('theirs.pdf');
+    $other = KalMother::create(file: $theirs, organizerId: $this->organizerId);
+    $this->repository->create($other);
+    $kal = KalMother::create(organizerId: $this->organizerId);
+    $this->repository->create($kal);
+
+    $kal->replaceFile($theirs);
+
+    expect(fn () => $this->repository->replaceFile($kal))
+        ->toThrow(KalFileException::class, 'The upload id has already been used by another file.');
+
+    $count = fn (string $id): int => (int) $this->connection->fetchOne(
+        'SELECT count(*) FROM kal_files WHERE kal_id = :id AND deleted_at IS NULL',
+        ['id' => $id],
+    );
+    expect($count($kal->id->value()))->toBe(0)
+        ->and($count($other->id->value()))->toBe(1);
+});
+
+// Dos PUT del mateix fitxer alhora, sense fils: `$stale` és el KAL tal com el
+// va carregar la segona petició, abans que la primera fes commit. Per a ell el
+// fitxer viu encara és el vell, i el no-op del domini no l'atura.
+it('treats a concurrent put of the same file as a no-op instead of rejecting it', function (): void {
+    $old = FileMother::create('old.pdf');
+    $kal = KalMother::create(file: $old, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $new = FileMother::create('new.pdf');
+
+    $stale = $this->repository->findById($kal->id, $this->organizerId);
+    $first = $this->repository->findById($kal->id, $this->organizerId);
+    $first->replaceFile($new);
+    $this->repository->replaceFile($first);
+
+    expect($stale->replaceFile($new))->toBeTrue();
+    $this->repository->replaceFile($stale);
+
+    $rows = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($rows)->toHaveCount(2)
+        ->and($rows[$old->uploadId->value()])->not->toBeNull()
+        ->and($rows[$new->uploadId->value()])->toBeNull();
+});
+
+it('refuses to replace the file of a kal that carries none, and writes nothing', function (): void {
+    $live = FileMother::create();
+    $kal = KalMother::create(file: $live, organizerId: $this->organizerId);
+    $this->repository->create($kal);
+    $withoutFile = KalMother::create(id: $kal->id, organizerId: $this->organizerId);
+
+    expect(fn () => $this->repository->replaceFile($withoutFile))
+        ->toThrow(KalStateException::class);
+
+    $files = $this->connection->fetchAllKeyValue(
+        'SELECT upload_id, deleted_at FROM kal_files WHERE kal_id = :id',
+        ['id' => $kal->id->value()],
+    );
+    expect($files)->toBe([$live->uploadId->value() => null]);
 });
 
 /** @return array<string, int|string> */

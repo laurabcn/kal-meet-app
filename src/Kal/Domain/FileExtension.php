@@ -15,7 +15,7 @@ enum FileExtension: string
     /** @throws KalFileException */
     public static function tryFromStatus(string $extension): self
     {
-        return self::tryFrom($extension) ?? throw KalFileException::invalidFileStatus();
+        return self::tryFrom($extension) ?? throw KalFileException::invalidFileType($extension);
     }
 
     public function value(): string

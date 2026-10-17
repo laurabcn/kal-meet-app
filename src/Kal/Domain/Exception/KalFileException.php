@@ -16,6 +16,15 @@ final class KalFileException extends DomainException
         );
     }
 
+    /**
+     * `invalid_payload` i no un codi propi: per al client és un camp del cos
+     * que no val, igual que un `uploadId` que no és un ULID.
+     */
+    public static function uploadIdAlreadyUsed(): self
+    {
+        return new self('invalid_payload', 'The upload id has already been used by another file.');
+    }
+
     public static function fileAlreadyDeleted(): self
     {
         return new self('kal_file_already_deleted', 'The file has already been deleted.');

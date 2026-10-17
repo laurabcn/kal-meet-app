@@ -28,7 +28,7 @@ final class Kal extends AggregateRoot
         public private(set) readonly UlidValue $organizerId,
         public private(set) NonEmptyStringValue $name,
         public private(set) ?NonEmptyStringValue $description,
-        public private(set) readonly ?File $file,
+        public private(set) ?File $file,
         public private(set) readonly Clues $clues,
         public private(set) readonly Locale $locale,
         public private(set) DateTime $startsOn,
@@ -204,6 +204,24 @@ final class Kal extends AggregateRoot
         $this->endsOn = $endsOn;
         $this->coverPath = $coverPath;
         $this->updatedAt = DateTime::now();
+    }
+
+    /**
+     * Torna `false` si el fitxer ja és el viu (mateix `uploadId`): un reintent
+     * de xarxa no ha d'escriure res ni moure `updatedAt`.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function replaceFile(File $file): bool
+    {
+        if (null !== $this->file && $this->file->uploadId->equals($file->uploadId)) {
+            return false;
+        }
+
+        $this->file = $file;
+        $this->updatedAt = DateTime::now();
+
+        return true;
     }
 
     /** @throws InvalidArgumentException */
