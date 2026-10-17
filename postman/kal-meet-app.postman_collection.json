@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "KAL Meet App — Auth & Kal",
-    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}`, `GET /kal`, `PATCH /kal/{id}`, `PUT /kal/{id}/file`, the clue CRUD (`/kal/{id}/clue`), `POST /kal/participation` and `DELETE /kal/{id}`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set; then **PATCH /kal/{id}** to smoke the update, and the **PUT /kal/{id}/file** requests in order (set → retry → replace → reused uploadId). The **Kal** folder is meant to run top to bottom: the clue requests reuse `clueId` from the clue create, and **DELETE /kal/{id} — delete** is last on purpose, because it removes the KAL everything else uses.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `error` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` / `inviteToken` must **not** appear in create or PATCH bodies — organizer comes from the token; invite rotation is a later endpoint.\n\n## PATCH /kal/{id}\nPartial update of scalar fields only: `name`, `description`, `startsOn`, `endsOn`, `coverPath`. Omit = leave; `null` on nullable fields = clear. Success → `204` empty body.\n\n## Locale and file\nA KAL has **one** `locale` (string, e.g. `\"ca\"`), fixed at creation, and at most one pattern `file` (object, optional). Clues and files inherit the KAL locale and must not carry their own. `locales` / `files` (old contract) and `locale` / `file` on PATCH → `400 invalid_payload`.\n\n## PUT /kal/{id}/file\nSets or replaces the KAL's pattern PDF. The body is the file itself (`fileName`, `filePath`, `fileSize`, `fileExtension`, `uploadId`, `uploadedAt`), same shape as the `file` of `POST /kal`, without `locale`. The binary is uploaded straight to Storage by the client; this only records metadata and path. Success → `204` empty body, whether it sets, replaces, or the file is already the live one (same `uploadId` → no-op). A `uploadId` already used by another `kal_files` row → `400 invalid_payload`.\n\n## Clues\n`POST /kal/{id}/clue` (201 + `{\"data\": {\"id\"}}`), `PATCH /kal/{id}/clue/{clueId}` (scalars only, 204), `DELETE /kal/{id}/clue/{clueId}` (soft delete of the clue and its meeting, 204). Unknown, deleted or foreign clue → `404 clue_not_found`.\n\n## DELETE /kal/{id}\nSoft delete of the KAL and its whole tree, one transaction, 204. Not idempotent: a second delete → 404.",
+    "description": "Smoke collection for Supabase JWT auth (KAL-004), `POST /kal`, `GET /kal/{id}`, `GET /kal`, `PATCH /kal/{id}`, `PUT /kal/{id}/file`, the clue CRUD (`/kal/{id}/clue`), `POST /kal/participation` and `DELETE /kal/{id}`.\n\n## Setup\n1. `make up` (nginx on http://localhost:8080 by default).\n2. Have Supabase local running (`supabase start`) with a user that has a `profiles` row.\n3. Copy an access token from the FE / Supabase Auth (magic link session) into the collection variable `accessToken`, or into the **Local** environment. For join happy path, also set `participantAccessToken` to a **different** user's JWT (organizer joining their own KAL → 409).\n4. Set `baseUrl` if you use another port (`HTTP_PORT=8081` → `http://localhost:8081`).\n5. Run **POST /kal — create** then **GET /kal/{id}** so `kalId` + `inviteToken` are set; then **PATCH /kal/{id}** to smoke the update, and the **PUT /kal/{id}/file** requests in order (set → retry → replace → reused uploadId). The **Kal** folder is meant to run top to bottom: the clue requests reuse `clueId` from the clue create, and **DELETE /kal/{id} — delete** is last on purpose, because it removes the KAL everything else uses.\n\n## Auth contract\n`Authorization: Bearer <supabase_jwt>`\n\n| Case | Status | `code` |\n| --- | --- | --- |\n| Missing / non-Bearer | 401 | `auth_token_missing` |\n| Bad signature / iss / aud | 401 | `auth_token_invalid` |\n| Expired | 401 | `auth_token_expired` |\n| Valid token, no profile | 401 | `auth_profile_not_found` |\n| JWKS unreachable (cold) | 503 | `auth_keys_unavailable` |\n\n`organizerId` / `inviteToken` must **not** appear in create or PATCH bodies — organizer comes from the token; invite rotation is a later endpoint.\n\n## PATCH /kal/{id}\nPartial update of scalar fields only: `name`, `description`, `startsOn`, `endsOn`, `coverPath`. Omit = leave; `null` on nullable fields = clear. Success → `204` empty body.\n\n## Locale and file\nA KAL has **one** `locale` (string, e.g. `\"ca\"`), fixed at creation, and at most one pattern `file` (object, optional). Clues and files inherit the KAL locale and must not carry their own. `locales` / `files` (old contract) and `locale` / `file` on PATCH → `400 invalid_payload`.\n\n## PUT /kal/{id}/file\nSets or replaces the KAL's pattern PDF. The body is the file itself (`fileName`, `filePath`, `fileSize`, `fileExtension`, `uploadId`, `uploadedAt`), same shape as the `file` of `POST /kal`, without `locale`. The binary is uploaded straight to Storage by the client; this only records metadata and path. Success → `204` empty body, whether it sets, replaces, or the file is already the live one (same `uploadId` → no-op). A `uploadId` already used by another `kal_files` row → `400 invalid_payload`.\n\n## Clues\n`POST /kal/{id}/clue` (201 + `{\"data\": {\"id\"}}`), `PATCH /kal/{id}/clue/{clueId}` (scalars only, 204), `DELETE /kal/{id}/clue/{clueId}` (soft delete of the clue and its meeting, 204). Unknown, deleted or foreign clue → `404 clue_not_found`.\n\n## DELETE /kal/{id}\nSoft delete of the KAL and its whole tree, one transaction, 204. Not idempotent: a second delete → 404.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -81,7 +81,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -110,7 +110,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -143,7 +143,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_invalid', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_invalid');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_invalid');",
                   "});"
                 ]
               }
@@ -186,7 +186,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -464,7 +464,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -741,7 +741,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -1181,7 +1181,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -1264,7 +1264,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -1794,7 +1794,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -1965,7 +1965,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
@@ -2069,7 +2069,7 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('auth_token_missing', () => {",
-                  "  pm.expect(pm.response.json().error).to.eql('auth_token_missing');",
+                  "  pm.expect(pm.response.json().code).to.eql('auth_token_missing');",
                   "});"
                 ]
               }
