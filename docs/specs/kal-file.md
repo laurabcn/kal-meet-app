@@ -83,6 +83,8 @@ perquè el client no n'hagi d'aprendre dues.
 | `fileSize` ≤ 0 | 400 | `file_size_not_positive` |
 | `fileSize` per sobre del màxim de `FileSize` | 400 | `file_size_exceeded` |
 | `fileExtension` no permesa | 400 | `kal_file_invalid_type` |
+| `uploadId` és un string però no un ULID | 400 | `invalid_ulid` |
+| `uploadedAt` és un string però no una data vàlida | 400 | `invalid_datetime_format` |
 | `uploadId` ja usat per una altra fila de `kal_files` (un fitxer esborrat d'aquest KAL o de qualsevol altre) | 400 | `invalid_payload` |
 | Cos que no és JSON | 400 | `invalid_json` |
 | Sense JWT | 401 | — |
@@ -215,6 +217,12 @@ perquè el client no n'hagi d'aprendre dues.
 `kal_file_invalid_status` en comptes de `kal_file_invalid_type`
 (`FileExtension::tryFromStatus()` llançava l'excepció de `FileUploadStatus`).
 Afectava també el `POST /kal`.
+
+**Trobat al smoke (2026-10-05), sense canvis de codi:** un `uploadId` que no
+és un ULID dona `invalid_ulid`, i un `uploadedAt` mal format dona
+`invalid_datetime_format`, no `invalid_payload`. El `POST /kal` respon igual amb
+el mateix fitxer, o sigui que era la taula d'errors la que s'havia quedat curta;
+ara els recull.
 
 **Trobat de passada, pendent:** el `POST /kal` amb un `uploadId` de fitxer ja
 existent dona `500 kal_persistence_failed`, perquè `create()` només distingeix
